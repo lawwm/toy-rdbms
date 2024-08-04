@@ -3,6 +3,6 @@
 #define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 
-TEST_CASE("Sample Test") {
-  REQUIRE(1 + 1 == 2);
+TEST_CASE("test 1") {
+  REQUIRE(1 == 1);
 }
