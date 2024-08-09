@@ -7,24 +7,12 @@
 #include <cstring>
 #include <stdexcept>
 #include <unordered_map>
-#include <cstdint>
 #include <filesystem>
 
+#include "common.h"
+#include "query.h"
+
 // this page stores the storage engine.
-
-using u8 = std::uint8_t;
-using u32 = std::uint32_t;
-using u64 = std::uint64_t;
-using i8 = std::int8_t;
-using i16 = std::int16_t;
-using i32 = std::int32_t;
-
-
-const static u8 u8Max = std::numeric_limits<u8>::max();
-const static u32 u32Max = std::numeric_limits<u32>::max();
-const static u64 u64Max = std::numeric_limits<u64>::max();
-
-
 
 // strategy -> store everything on one file and use it as a disk...
 
@@ -88,123 +76,6 @@ struct TuplePage {
   TuplePage(u64 checkSum, u32 pageSize, u32 numberOfSlots, u32 lastOccupiedPosition) :
     pageType{ PageType::TuplePage },
     checkSum{ checkSum }, pageSize{ pageSize }, numberOfSlots{ numberOfSlots }, lastOccupiedPosition{ lastOccupiedPosition } {}
-};
-
-class WriteField {
-public:
-  virtual ~WriteField() = default;
-  virtual u32 getLength() = 0;
-  virtual void write(char* buffer, u32 offset) = 0;
-};
-class ReadField {
-public:
-  virtual ~ReadField() = default;
-  virtual WriteField* get(const char* buffer, u32 offset) = 0;
-};
-
-
-// first 4 bytes is string length, then the string
-class VarCharField : public WriteField {
-  std::string value;
-public:
-  virtual ~VarCharField() override = default;
-  VarCharField(std::string value) : value{ value } {}
-
-  virtual u32 getLength() override {
-    return value.size() + sizeof(u32);
-  }
-  virtual void write(char* buffer, u32 offset) override {
-    u32 length = value.size();
-    std::memcpy(buffer + offset, &length, sizeof(u32));
-    std::memcpy(buffer + offset + sizeof(u32), value.c_str(), value.size());
-  }
-};
-
-class ReadVarCharField : public ReadField {
-public:
-  ReadVarCharField() {}
-  virtual ~ReadVarCharField() override = default;
-
-  virtual WriteField* get(const char* buffer, u32 offset) override {
-    u32 length;
-    std::memcpy(&length, buffer + offset, sizeof(u32));
-    std::string value(buffer + offset + sizeof(u32), length);
-    return new VarCharField(value);
-  }
-};
-
-class FixedCharField : public WriteField {
-private:
-  int length;
-  std::string value;
-public:
-  FixedCharField(int length, std::string value) : length{ length }, value{ value } {}
-  virtual ~FixedCharField() override = default;
-
-  virtual u32 getLength() override {
-    return length;
-  }
-  virtual void write(char* buffer, u32 offset) override {
-    std::memcpy(buffer + offset, value.c_str(), value.size());
-  }
-};
-
-class ReadFixedCharField : public ReadField {
-private:
-  int length;
-public:
-  ReadFixedCharField(int length) : length{ length } {}
-  virtual ~ReadFixedCharField() override = default;
-
-  virtual WriteField* get(const char* buffer, u32 offset) override {
-    std::string value(buffer + offset + sizeof(u32), length);
-    return new FixedCharField(length, value);
-  }
-};
-
-class IntField : public WriteField {
-private:
-  i32 value;
-public:
-  IntField(i32 value) : value{ value } {}
-  virtual ~IntField() override = default;
-
-  virtual u32 getLength() override {
-    return sizeof(i32);
-  }
-  virtual void write(char* buffer, u32 offset) override {
-    std::memcpy(buffer + offset, &value, sizeof(i32));
-  }
-};
-
-class ReadIntField : public ReadField {
-public:
-  ReadIntField() {}
-  virtual ~ReadIntField() override = default;
-
-  virtual WriteField* get(const char* buffer, u32 offset) override {
-    i32 value;
-    std::memcpy(&value, buffer + offset, sizeof(i32));
-    return new IntField(value);
-  }
-};
-
-struct Tuple {
-  std::vector<std::unique_ptr<WriteField>> fields;
-  u32 recordSize;
-  Tuple(std::vector<std::unique_ptr<WriteField>> inputFields) : fields{ std::move(inputFields) } {
-    recordSize = 0;
-    for (auto& field : this->fields) {
-      recordSize += field->getLength();
-    }
-  }
-};
-
-struct Schema {
-  std::string filename;
-  std::vector<ReadField*> fields;
-
-  Schema(std::string filename, std::vector<ReadField*> fields) : filename{ filename }, fields{ fields } {};
 };
 
 struct Slot {
