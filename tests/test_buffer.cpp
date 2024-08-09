@@ -61,13 +61,18 @@ TEST_CASE("Insert tuple") {
   {
     std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(PAGE_SIZE_M, 10);
 
-    HeapFileOps::createTable(*rm, fileName);
+    HeapFile::createHeapFile(*rm, fileName);
 
     Schema schema(fileName, {});
-    std::vector<WriteField*> fields{ new VarCharField("memes lol haha"), new FixedCharField(20, "fixed char"), new IntField(4) };
-    Tuple tuple(fields);
+    std::vector<std::unique_ptr<WriteField>> writeFields;
+    writeFields.emplace_back(std::make_unique<VarCharField>("memes lol haha"));
+    writeFields.emplace_back(std::make_unique<FixedCharField>(20, "fixed char"));
+    writeFields.emplace_back(std::make_unique<IntField>(4));
 
-    HeapFileOps::insertTuple(*rm, schema, tuple);
+    Tuple tuple(std::move(writeFields));
+
+    // write after free
+    HeapFile::insertTuple(*rm, schema, tuple);
     std::vector<std::unique_ptr<ReadField>> readFields;
     readFields.emplace_back(std::make_unique<ReadVarCharField>());
     readFields.emplace_back(std::make_unique<ReadFixedCharField>(20));

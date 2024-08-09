@@ -19,7 +19,11 @@ std::unordered_map<std::string, TokenType> keywords = {
   {"NOT", NOT},
   {"NULL", NULL_TOKEN},
   {"JOIN", JOIN},
-  {"ON", ON}
+  {"ON", ON},
+  {"CREATE", CREATE},
+  {"TABLE", TABLE},
+  {"INSERT", INSERT},
+  {"INTO", INTO},
 
   // do the uncapitalised keywords
 

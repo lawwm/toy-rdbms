@@ -190,11 +190,11 @@ public:
 };
 
 struct Tuple {
-  std::vector<WriteField*> fields;
+  std::vector<std::unique_ptr<WriteField>> fields;
   u32 recordSize;
-  Tuple(std::vector<WriteField*> fields) : fields{ fields } {
+  Tuple(std::vector<std::unique_ptr<WriteField>> inputFields) : fields{ std::move(inputFields) } {
     recordSize = 0;
-    for (auto& field : fields) {
+    for (auto& field : this->fields) {
       recordSize += field->getLength();
     }
   }
@@ -487,123 +487,6 @@ struct ResourceManager {
 *
 *
 */
-namespace HeapFileOps {
-  // todo
-
-  void createTable(ResourceManager& rm, std::string filename) {
-    const u32 newPages = 8;
-
-    auto& fm = rm.fm;
-    auto& bm = rm.bm;
-
-    // create a new heap file.
-    PageId pageId{ filename, 0 };
-    fm.createFileIfNotExists(pageId.filename);
-    fm.append(pageId, newPages + 1);
-
-    BufferFrame* bf = bm.pin(fm, pageId);
-    PageDirectory pd{ u64Max, u64Max, newPages };
-    std::strncpy(pd.tableName, filename.c_str(), 128);
-
-    //create a new page directory with page entries.
-    std::vector<PageEntry> pe;
-    for (u64 i = 1; i <= newPages; ++i) {
-      u32 freeSpace = fm.getBlockSize() - ((u32)sizeof(TuplePage));
-      pe.push_back(PageEntry{ i, freeSpace });
-    }
-
-    bf->modify(&pd, sizeof(PageDirectory), 0);
-    bf->modify(pe.data(), sizeof(PageEntry) * pe.size(), sizeof(PageDirectory));
-
-    bm.unpin(fm, pageId);
-
-    // Create page header for each tuple page.
-    TuplePage tp{ 0, fm.getBlockSize(), 0, fm.getBlockSize() };
-    for (u64 i = 1; i <= newPages; ++i) {
-      PageId tuplePageId{ filename, i };
-      BufferFrame* tuplePageBuffer = bm.pin(fm, tuplePageId);
-      tuplePageBuffer->modify(&tp, sizeof(TuplePage), 0);
-      bm.unpin(fm, tuplePageId);
-    }
-  };
-
-  void insertTuple(ResourceManager& rm, Schema schema, Tuple tuple) {
-    auto& fm = rm.fm;
-    auto& bm = rm.bm;
-
-    PageId pageId{ schema.filename, 0 };
-    BufferFrame* bf = bm.pin(fm, pageId);
-
-    PageDirectory* pd = (PageDirectory*)bf->bufferData.data();
-    u64 numberOfEntries = pd->numberOfEntries;
-
-
-    u64 chosenEntry = -1, pageNumberChosen = -1;
-    const PageEntry* pageEntryList = reinterpret_cast<PageEntry*>(bf->bufferData.data() + sizeof(PageDirectory));
-    for (int i = 0; i < numberOfEntries; ++i) {
-      auto& pageEntry = pageEntryList[i];
-      if (pageEntry.freeSpace >= tuple.recordSize + sizeof(Slot)) {
-        chosenEntry = i;
-        pageNumberChosen = pageEntry.pageNumber;
-        break;
-      }
-    };
-
-    if (chosenEntry == -1) {
-      /**
-      *
-      */
-      // no space left in the heap file.
-      // create a new page.
-      //fm.append(pageId);
-      //numberOfEntries++;
-      //chosenEntry = numberOfEntries - 1;
-    }
-    else {
-      bm.unpin(fm, pageId);
-
-      PageId tuplePageId{ schema.filename, pageNumberChosen };
-      BufferFrame* tupleFrame = bm.pin(fm, tuplePageId);
-      TuplePage* pe = reinterpret_cast<TuplePage*>(tupleFrame->bufferData.data());
-      /*pe->freeSpace -= schema.recordSize + sizeof(Slot);*/
-
-      int numberOfSlots = pe->numberOfSlots;
-
-      Slot* slot = reinterpret_cast<Slot*>(tupleFrame->bufferData.data() + sizeof(TuplePage));
-
-      int emptySlotIdx = -1;
-      for (int i = 0; i < numberOfSlots; ++i) {
-        if (!slot[i].isOccupied()) {
-          emptySlotIdx = -1;
-          break;
-        }
-      }
-
-      if (emptySlotIdx == -1) {
-        emptySlotIdx = numberOfSlots;
-        pe->numberOfSlots += 1;
-      }
-
-      auto& currSlot = slot[emptySlotIdx];
-      currSlot.setOccupied(true);
-
-      u32 offset = pe->lastOccupiedPosition - tuple.recordSize;
-      currSlot.setOffset(offset);
-
-      for (auto& field : tuple.fields) {
-        field->write(tupleFrame->bufferData.data(), offset);
-        offset += field->getLength();
-      }
-
-      pe->lastOccupiedPosition = offset;
-
-      tupleFrame->dirty = true;
-      bm.unpin(fm, tuplePageId);
-    }
-
-  };
-}
-
 // pack page entries
 
 
@@ -690,7 +573,7 @@ namespace HeapFile {
   }
 
   // add new heap page
-  void appendNewHeapPage(ResourceManager& rm, std::string filename) {
+  PageId appendNewHeapPage(ResourceManager& rm, std::string filename) {
     auto& fm = rm.fm;
     auto& bm = rm.bm;
 
@@ -704,8 +587,8 @@ namespace HeapFile {
     while (true) {
       u64 numEntries = pd->numberOfEntries;
       u32 blockSize = fm.getBlockSize();
-
       u32 remainingSize = blockSize - sizeof(PageDirectory) - (numEntries * sizeof(PageEntry));
+
       // current page directory has enough space for page entry
       if (sizeof(PageEntry) <= remainingSize) {
         break;
@@ -751,7 +634,80 @@ namespace HeapFile {
     BufferFrame* tuplePageBuffer = bm.pin(fm, PageId{ filename, lastPageNumber });
     tuplePageBuffer->modify(&tp, sizeof(TuplePage), 0);
     bm.unpin(fm, tuplePageId);
+
+    return tuplePageId;
   }
+
+
+  void insertTuple(ResourceManager& rm, Schema& schema, Tuple& tuple) {
+    auto& fm = rm.fm;
+    auto& bm = rm.bm;
+
+    PageId pageId{ schema.filename, 0 };
+    BufferFrame* bf = bm.pin(fm, pageId);
+
+    PageDirectory* pd = (PageDirectory*)bf->bufferData.data();
+    u64 numberOfEntries = pd->numberOfEntries;
+
+    // Choose a page that has sufficient space.
+    u64 pageNumberChosen = -1;
+    const PageEntry* pageEntryList = reinterpret_cast<PageEntry*>(bf->bufferData.data() + sizeof(PageDirectory));
+    for (int i = 0; i < numberOfEntries; ++i)
+    {
+      auto& pageEntry = pageEntryList[i];
+      // if the page has enough space for the tuple
+      if (pageEntry.freeSpace >= tuple.recordSize + sizeof(Slot))
+      {
+        pageNumberChosen = pageEntry.pageNumber;
+        break;
+      }
+    };
+
+    if (pageNumberChosen == -1)
+    {
+      // if no space for tuple
+      PageId newPage = appendNewHeapPage(rm, schema.filename);
+      pageNumberChosen = newPage.pageNumber;
+    }
+
+    bm.unpin(fm, pageId);
+
+    // Get the headers
+    PageId tuplePageId{ schema.filename, pageNumberChosen };
+    BufferFrame* tupleFrame = bm.pin(fm, tuplePageId);
+    TuplePage* pe = reinterpret_cast<TuplePage*>(tupleFrame->bufferData.data());
+    Slot* slot = reinterpret_cast<Slot*>(tupleFrame->bufferData.data() + sizeof(TuplePage));
+    u32 numberOfSlots = pe->numberOfSlots;
+
+    u32 emptySlotIdx = u32Max;
+    for (u32 i = 0; i < numberOfSlots; ++i) {
+      if (!slot[i].isOccupied()) {
+        emptySlotIdx = i;
+        break;
+      }
+    }
+
+    if (emptySlotIdx == u32Max) {
+      emptySlotIdx = numberOfSlots;
+      pe->numberOfSlots += 1;
+    }
+
+    // Set current slot to be occupied
+    auto& currSlot = slot[emptySlotIdx];
+    u32 offset = pe->lastOccupiedPosition - tuple.recordSize;
+    currSlot.setOccupied(true);
+    currSlot.setOffset(offset);
+
+    // Write the tuple to the buffer
+    for (auto& field : tuple.fields) {
+      field->write(tupleFrame->bufferData.data(), offset);
+      offset += field->getLength();
+    }
+    pe->lastOccupiedPosition = offset;
+    tupleFrame->dirty = true;
+    bm.unpin(fm, tuplePageId);
+  };
+
 
   class Scan {
     PageId currentPageId;
@@ -765,8 +721,8 @@ namespace HeapFile {
     using value_type = std::vector<WriteField*>;
 
     Scan(std::string filename, std::shared_ptr<ResourceManager> rm, std::vector<std::unique_ptr<ReadField>>&& input)
-      : filename{ filename }, currentPageId{ PageId{ filename, 0 } }, currentSlot{ -1 },
-      rm{ rm }, currBuffer{ nullptr }, input{ std::move(input) } {
+      : currentPageId{ PageId{ filename, 0 } }, currentSlot{ -1 },
+      rm{ rm }, currBuffer{ nullptr }, filename{ filename }, input{ std::move(input) } {
     }
 
     value_type get() {
@@ -792,7 +748,10 @@ namespace HeapFile {
       rm->bm.unpin(rm->fm, this->currentPageId);
       this->currentPageId.pageNumber += 1;
 
-      while (this->currBuffer = rm->bm.pin(rm->fm, this->currentPageId)) {
+      while (true) {
+        this->currBuffer = rm->bm.pin(rm->fm, this->currentPageId);
+        if (!this->currBuffer) break;
+
         this->currentSlot = -1;
         PageType* pt = (PageType*)currBuffer->bufferData.data();
         if (*pt == PageType::TuplePage) {
