@@ -5,17 +5,26 @@ cmake_minimum_required (VERSION 3.8)
 
 project ("newsql")
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+# Ensure exceptions are enabled
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(-fexceptions)
+endif()
+
 #include directories
 include_directories(include)
 
 # Add source to this project's executable.
-add_executable (newsql "src/main.cpp"  "src/parser.cpp" "src/query.h")
+add_executable (newsql "src/main.cpp"  "src/parser.cpp" "src/query.h" "src/buffer.h" "src/buffer.cpp" "tests/test_buffer.cpp")
 
 
 
 # Add the Catch2 test executable
-file(GLOB headers "src/parser.h" "src/query.h")
-file(GLOB srcs "tests/test_main.cpp" "tests/test_parser.cpp" "src/parser.cpp")
+file(GLOB headers "src/parser.h" "src/query.h" "src/buffer.h")
+file(GLOB srcs "tests/test_main.cpp" "tests/test_parser.cpp" "src/parser.cpp" "src/buffer.cpp" "tests/test_buffer.cpp")
+
 
 add_executable(testsql ${srcs})
 target_include_directories(testsql PRIVATE include)
