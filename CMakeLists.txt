@@ -17,16 +17,16 @@ endif()
 include_directories(include)
 
 # Add source to this project's executable.
-add_executable (newsql "src/main.cpp"  "src/parser.cpp" "src/query.h" "src/buffer.h" "src/buffer.cpp" "tests/test_buffer.cpp" "src/common.h")
+add_executable (newsql "src/main.cpp"  "src/parser.cpp" "src/query.h" "src/buffer.h" "src/buffer.cpp" "tests/test_buffer.cpp" "src/common.h" "src/query.cpp" "src/scan.h" "src/scan.cpp" "tests/test_scan.cpp" "tests/test_utils.h")
 
 
 
 # Add the Catch2 test executable
-file(GLOB headers "src/parser.h" "src/query.h" "src/buffer.h")
-file(GLOB srcs "tests/test_main.cpp" "tests/test_parser.cpp" "src/parser.cpp" "src/buffer.cpp" "tests/test_buffer.cpp")
+file(GLOB headers "src/parser.h" "src/query.h" "src/buffer.h" "src/common.h" "src/scan.h" "tests/test_utils.h")
+file(GLOB srcs "tests/test_main.cpp" "tests/test_parser.cpp" "src/parser.cpp" "src/buffer.cpp" "tests/test_buffer.cpp"  "src/query.cpp" "src/scan.cpp" "tests/test_scan.cpp")
 
 
-add_executable(testsql ${srcs} "src/common.h")
+add_executable(testsql ${srcs} "tests/test_utils.h")
 target_include_directories(testsql PRIVATE include)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)

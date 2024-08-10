@@ -20,7 +20,8 @@ enum TokenType {
   IDENTIFIER, STRING, NUMBER,
 
   // keywords
-  SELECT, AS, FROM, WHERE, AND, OR, IS, NOT, NULL_TOKEN, JOIN, ON, CREATE, TABLE, INSERT, INTO,
+  SELECT, AS, FROM, WHERE, AND, OR, IS, NOT, NULL_TOKEN, JOIN,
+  ON, CREATE, TABLE, INSERT, INTO, VALUES, DELETE, UPDATE, SET,
 
   // error keyword
   ERROR_TOKEN
@@ -69,8 +70,10 @@ private:
 public:
   Parser(std::string input) : lexer(input) {};
   Query parseQuery();
+  std::vector<Tuple> parseInsert();
   void parseTable(Query& query);
   std::unique_ptr<Predicate> parsePredicate();
   std::unique_ptr<Term> parseTerm();
   std::unique_ptr<TableValue> parseValue();
+
 };

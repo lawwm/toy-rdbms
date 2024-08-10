@@ -24,6 +24,10 @@ std::unordered_map<std::string, TokenType> keywords = {
   {"TABLE", TABLE},
   {"INSERT", INSERT},
   {"INTO", INTO},
+  {"VALUES", VALUES},
+  {"DELETE", DELETE},
+  {"UPDATE", UPDATE},
+  {"SET", SET},
 
   // do the uncapitalised keywords
 
@@ -220,6 +224,83 @@ Query Parser::parseQuery()
   }
   return query;
 }
+
+std::vector<Tuple> Parser::parseInsert()
+{
+  // parse table name
+  if (!lexer.matchToken(INSERT)) {
+    this->addError("Expected INSERT keyword");
+  }
+  lexer.nextToken();
+  if (!lexer.matchToken(INTO)) {
+    this->addError("Expected INTO keyword");
+  }
+  lexer.nextToken();
+
+  if (!lexer.matchToken(IDENTIFIER)) {
+    this->addError("Expected table name");
+  }
+  auto tableToken = lexer.nextToken();
+
+  // parse table fields
+  if (!lexer.matchToken(LEFT_PAREN)) {
+    this->addError("Expected left parenthesis");
+  }
+  lexer.nextToken();
+
+  std::vector<std::string> fields;
+  while (lexer.matchToken(IDENTIFIER)) {
+    fields.push_back(lexer.nextToken().lexeme);
+    if (lexer.matchToken(COMMA)) {
+      lexer.nextToken();
+    }
+  }
+
+  if (!lexer.matchToken(RIGHT_PAREN)) {
+    this->addError("Expected right parenthesis");
+  }
+  lexer.nextToken();
+
+
+  std::vector<Tuple> tuples;
+  if (!lexer.matchToken(VALUES)) {
+    this->addError("Expected VALUES keyword");
+  }
+  lexer.nextToken();
+
+  // parse tuples
+  do {
+    if (lexer.matchToken(COMMA))
+    {
+      lexer.nextToken();
+    }
+    if (!lexer.matchToken(LEFT_PAREN)) {
+      this->addError("Expected left parenthesis");
+    }
+    lexer.nextToken();
+
+    std::vector<std::string> values;
+    do {
+      if (lexer.matchToken(COMMA))
+      {
+        lexer.nextToken();
+      }
+      auto valueToken = lexer.nextToken();
+    } while (lexer.matchToken(COMMA));
+
+    if (!lexer.matchToken(RIGHT_PAREN)) {
+      this->addError("Expected right parenthesis");
+    }
+    lexer.nextToken();
+
+  } while (lexer.matchToken(COMMA));
+
+  if (!lexer.matchToken(SEMI_COLON)) {
+    this->addError("Expected semicolon");
+  }
+  lexer.nextToken();
+};
+
 
 void Parser::parseTable(Query& query)
 {

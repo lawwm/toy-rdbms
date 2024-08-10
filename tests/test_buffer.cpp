@@ -5,19 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
-
-struct DeferDeleteFile {
-  std::string fileName;
-  DeferDeleteFile(const std::string& fileName) : fileName(fileName) {};
-  ~DeferDeleteFile() {
-    if (std::filesystem::remove(fileName) != 0) {
-      std::cerr << "Error deleting file" << std::endl;
-    }
-    else {
-      std::cout << "File successfully deleted" << std::endl;
-    }
-  }
-};
+#include "./test_utils.h"
 
 TEST_CASE("Check buffer works") {
 
@@ -53,36 +41,4 @@ TEST_CASE("Check buffer works") {
   int readInt;
   std::memcpy(&readInt, readTest.data() + offset, sizeof(int));
   REQUIRE(readInt == testInt);
-}
-
-TEST_CASE("Insert tuple") {
-  const std::string fileName = "testFile";
-  DeferDeleteFile deferDeleteFile(fileName);
-  {
-    std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(PAGE_SIZE_M, 10);
-
-    HeapFile::createHeapFile(*rm, fileName);
-
-    Schema schema(fileName, {});
-    std::vector<std::unique_ptr<WriteField>> writeFields;
-    writeFields.emplace_back(std::make_unique<VarCharField>("memes lol haha"));
-    writeFields.emplace_back(std::make_unique<FixedCharField>(20, "fixed char"));
-    writeFields.emplace_back(std::make_unique<IntField>(4));
-
-    Tuple tuple(std::move(writeFields));
-
-    // write after free
-    HeapFile::insertTuple(*rm, schema, tuple);
-    std::vector<std::unique_ptr<ReadField>> readFields;
-    readFields.emplace_back(std::make_unique<ReadVarCharField>());
-    readFields.emplace_back(std::make_unique<ReadFixedCharField>(20));
-    readFields.emplace_back(std::make_unique<ReadIntField>());
-
-    HeapFile::Scan scan(fileName, rm, std::move(readFields));
-    scan.getFirst();
-    while (scan.next()) {
-      auto v = scan.get();
-      int a = 1;
-    };
-  }
 }
