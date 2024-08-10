@@ -132,7 +132,7 @@ public:
   bool write(PageId pageId, std::vector<char>& bufferData);
 
   // return the last pageId
-  u32 append(PageId fileinfo, int numberOfBlocksToAppend = 1);
+  u32 append(std::string filename, int numberOfBlocksToAppend = 1);
 
   u32 getNumberOfPages(PageId pageId);
   u32 getNumberOfPages(std::string filename);
@@ -291,4 +291,251 @@ namespace HeapFile {
 
 
   void insertTuple(ResourceManager& rm, Schema& schema, Tuple& tuple);
-}
+  void insertTuples(std::shared_ptr<ResourceManager> rm, Schema& schema, std::vector<Tuple>& tuples);
+
+  /**
+  There are Page Directories, which contains Page Entries.
+
+  Page Entry contains [page number, free space]
+
+  Page Entry leads to Pages.
+
+  Here's the invariant:
+  - Do not create another Page Directory until the current Page Directory is full of page entries.
+
+  - pageDirBuffer should always exist. pageBuffer might not exist at any moment in time.
+
+  - when should you create a new page entry or a new page directory?
+  - when you don't have enough space.
+
+  */
+  class HeapFileIterator {
+  private:
+    // page directory buffer
+    PageId pageDirectoryId;
+    BufferFrame* pageDirBuffer;
+
+    // page buffer
+    PageId pageId;
+    BufferFrame* pageBuffer;
+    u32 pageEntryIndex;
+
+    // misc data
+    std::string filename;
+    std::shared_ptr<ResourceManager> resourceManager;
+  public:
+    HeapFileIterator(std::string filename, std::shared_ptr<ResourceManager> rm) : filename{ filename },
+      resourceManager{ rm }, pageBuffer{ nullptr }, pageEntryIndex{ u32Max } {
+      pageDirectoryId = PageId{ filename, 0 };
+      pageDirBuffer = resourceManager->bm.pin(resourceManager->fm, pageDirectoryId);
+    };
+
+    ~HeapFileIterator() {
+      resourceManager->bm.unpin(resourceManager->fm, pageDirectoryId);
+      if (pageBuffer) {
+        resourceManager->bm.unpin(resourceManager->fm, pageId);
+      }
+    }
+
+    BufferFrame* getPageDirBuffer() {
+      return pageDirBuffer;
+    };
+
+    BufferFrame* getPageBuffer() {
+      return pageBuffer;
+    };
+
+    /**
+    * Return true if pages were changed, false if no pages were changed
+    *
+    */
+    bool findFirstDir() {
+      if (pageDirectoryId.pageNumber == 0) {
+        return true;
+      }
+      else {
+        pageDirectoryId = PageId{ filename, 0 };
+        resourceManager->bm.unpin(resourceManager->fm, pageDirBuffer->pageId);
+        pageDirBuffer = resourceManager->bm.pin(resourceManager->fm, pageDirectoryId);
+        return true;
+      }
+    };
+
+    bool nextDir() {
+      PageDirectory* pd = reinterpret_cast<PageDirectory*>(pageDirBuffer->bufferData.data());
+      if (pd->nextPage == u64Max) {
+        return false;
+      }
+      pageDirectoryId = PageId{ filename, pd->nextPage };
+      resourceManager->bm.unpin(resourceManager->fm, pageDirBuffer->pageId);
+      pageDirBuffer = resourceManager->bm.pin(resourceManager->fm, pageDirectoryId);
+      return true;
+    };
+
+    bool nextPageInDir() {
+      const PageDirectory* pd = reinterpret_cast<PageDirectory*>(pageDirBuffer->bufferData.data());
+      const PageEntry* pageEntryList = reinterpret_cast<PageEntry*>(pageDirBuffer->bufferData.data() + sizeof(PageDirectory));
+      if (!pageBuffer) {
+        // no page exists, so choose the first page entry
+        if (pd->numberOfEntries == 0) {
+          return false;
+        }
+        else {
+          pageId = PageId{ filename, pageEntryList[0].pageNumber };
+          pageBuffer = resourceManager->bm.pin(resourceManager->fm, pageId);
+          pageEntryIndex = 0;
+          return true;
+        }
+      }
+      else {
+        // page exists, so choose the next page entry
+        resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
+        if (pageEntryIndex + 1 >= pd->numberOfEntries) {
+          return false;
+        }
+        else {
+          pageId = PageId{ filename, pageEntryList[pageEntryIndex + 1].pageNumber };
+          pageBuffer = resourceManager->bm.pin(resourceManager->fm, pageId);
+          pageEntryIndex++;
+          return true;
+        }
+      }
+    };
+
+    /**
+    Traverse to the first page where there is enough space for the record size.
+
+    Can add new pages if there are currently unsufficient page entry/ pages.
+
+    1. Not enough page entries in page dire -> add new page entry and new page.
+    2. Not enough page directories -> add new page directory, page entry, and new page.
+
+
+    1. found good page entry in current page dir
+    2. page dir has space left for new page entry
+    3. page dir has no space left for new page entry
+      3.5 There is next page
+      3.6 no next page
+
+      return true if pages were added
+      , false if no pages were added.
+    */
+    bool traverseFromStartTilFindSpace(u32 recordSize) {
+      u32 requiredSize = recordSize + sizeof(Slot);
+      u32 remainingPageDirSize;
+      u64 pageNumberChosen = u64Max;
+      PageDirectory* pd;
+      PageEntry* pageEntryList;
+      do {
+        pd = reinterpret_cast<PageDirectory*>(pageDirBuffer->bufferData.data());
+        pageEntryList = reinterpret_cast<PageEntry*>(pageDirBuffer->bufferData.data() + sizeof(PageDirectory));
+        for (u32 i = 0; i < pd->numberOfEntries; ++i) {
+          if (pageEntryList[i].freeSpace >= requiredSize) {
+            // unpin the current page buffer
+            if (pageBuffer) {
+              resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
+            }
+
+            // set up the page buffer to point to the chosen page
+            pageId = PageId{ filename, pageEntryList[i].pageNumber };
+            this->pageEntryIndex = i;
+            pageBuffer = resourceManager->bm.pin(resourceManager->fm, pageId);
+            pageNumberChosen = pageEntryList[i].pageNumber;
+
+            break;
+          }
+        };
+        remainingPageDirSize = resourceManager->fm.getBlockSize() - sizeof(PageDirectory) - (pd->numberOfEntries * sizeof(PageEntry));
+        // found no suitable page entry and has no space for page entry
+        bool hasSpaceForPageEntry = remainingPageDirSize >= sizeof(PageEntry);
+        bool foundGoodPageEntry = pageNumberChosen != u64Max;
+        if (hasSpaceForPageEntry || foundGoodPageEntry) {
+          break;
+        }
+      } while (this->nextDir());
+
+      // no good page entry found
+      if (pageNumberChosen == u64Max) {
+        TuplePage tp{ 0, resourceManager->fm.getBlockSize(), 0, resourceManager->fm.getBlockSize() };
+        u32 freeSpace = resourceManager->fm.getBlockSize() - ((u32)sizeof(TuplePage));
+
+        // add a new page and corresponding page entry
+        if (remainingPageDirSize >= sizeof(PageEntry)) {
+          u32 lastPageNumber = resourceManager->fm.append(filename) - 1;
+
+          // add the page entry to page directory page
+          PageEntry newPageEntry{ lastPageNumber, freeSpace };
+          pageDirBuffer->modify(&newPageEntry, sizeof(PageEntry), sizeof(PageDirectory) + (pd->numberOfEntries * sizeof(PageEntry)));
+          pd->numberOfEntries += 1;
+
+          if (pageBuffer) {
+            resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
+          }
+
+          // add the tuple header to the tuple page.
+          pageId = PageId{ filename, lastPageNumber };
+          pageBuffer = resourceManager->bm.pin(resourceManager->fm, pageId);
+          pageBuffer->modify(&tp, sizeof(TuplePage), 0);
+          pageEntryIndex = pd->numberOfEntries - 1;
+        }
+        else {
+          // add a new page directory and corresponding page entry and pages
+          u32 numPages = 9;
+          u32 lastPageNumber = resourceManager->fm.append(filename, numPages);
+          u32 dirPageNumber = lastPageNumber - numPages;
+
+          // unpin current page directory
+          resourceManager->bm.unpin(resourceManager->fm, pageDirBuffer->pageId);
+
+          // pin new page directory buffer
+          pageDirectoryId = PageId{ filename, dirPageNumber };
+          pageDirBuffer = resourceManager->bm.pin(resourceManager->fm, pageDirectoryId);
+
+          PageDirectory newPd{ dirPageNumber, u64Max, 0 };
+          std::strncpy(newPd.tableName, filename.c_str(), 128);
+
+          // Add page entries to the page directory
+          std::vector<PageEntry> pe;
+          for (u64 i = 1; i <= numPages - 1; ++i) {
+            u32 pageEntryPageNumber = dirPageNumber + i;
+            pe.push_back(PageEntry{ pageEntryPageNumber, freeSpace });
+          }
+
+          // flush into memory
+          pageDirBuffer->modify(&newPd, sizeof(PageDirectory), 0);
+          pageDirBuffer->modify(pe.data(), sizeof(PageEntry) * pe.size(), sizeof(PageDirectory));
+          pd->numberOfEntries += numPages - 1;
+
+          // Add tuple header for each page
+          if (pageBuffer) {
+            resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
+          }
+
+          // Add tuple header for each page 
+          for (auto pageEntry : pe) {
+            PageId tuplePageId{ filename, pageEntry.pageNumber };
+            pageBuffer = resourceManager->bm.pin(resourceManager->fm, tuplePageId);
+            pageBuffer->modify(&tp, sizeof(TuplePage), 0);
+            resourceManager->bm.unpin(resourceManager->fm, tuplePageId);
+          }
+
+          // pin the page buffer
+          pageId = PageId{ filename, pe[0].pageNumber };
+          pageBuffer = resourceManager->bm.pin(resourceManager->fm, pageId);
+          pageEntryIndex = 0;
+        }
+
+        return true;
+      }
+
+      return false;
+    };
+
+    bool canDirStorePageEntry() {
+      const PageDirectory* pd = reinterpret_cast<PageDirectory*>(pageDirBuffer->bufferData.data());
+      u32 remainingSize = resourceManager->fm.getBlockSize() - sizeof(PageDirectory) - (pd->numberOfEntries * sizeof(PageEntry));
+      return remainingSize >= sizeof(PageEntry);
+    }
+  };
+
+};

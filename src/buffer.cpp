@@ -59,12 +59,12 @@ bool FileManager::write(PageId pageId, std::vector<char>& bufferData) {
   return true;
 };
 
-u32 FileManager::append(PageId fileinfo, int numberOfBlocksToAppend) {
-  if (fileMap.find(fileinfo.filename) == fileMap.end()) {
-    fileMap.insert({ fileinfo.filename, std::fstream(fileinfo.filename, std::ios::in | std::ios::out | std::ios::binary) });
+u32 FileManager::append(std::string filename, int numberOfBlocksToAppend) {
+  if (fileMap.find(filename) == fileMap.end()) {
+    fileMap.insert({ filename, std::fstream(filename, std::ios::in | std::ios::out | std::ios::binary) });
   }
 
-  auto& fileStream = fileMap.at(fileinfo.filename);
+  auto& fileStream = fileMap.at(filename);
   std::vector<char> emptyBufferData(blockSize, 0);
 
   // Seek to the end of the file
@@ -80,7 +80,7 @@ u32 FileManager::append(PageId fileinfo, int numberOfBlocksToAppend) {
     throw std::runtime_error("Error appending to file");
   }
 
-  u32 end = std::filesystem::file_size(fileinfo.filename);
+  u32 end = std::filesystem::file_size(filename);
 
   return end / blockSize;
 }
@@ -109,7 +109,7 @@ void HeapFile::createHeapFile(ResourceManager& rm, std::string filename, const u
   // create a new heap file.
   PageId pageId{ filename, 0 };
   fm.createFileIfNotExists(pageId.filename);
-  fm.append(pageId, newPages + 1);
+  fm.append(filename, newPages + 1);
 
   // Add page directory header to the page directory
   BufferFrame* bf = bm.pin(fm, pageId);
@@ -129,7 +129,7 @@ void HeapFile::createHeapFile(ResourceManager& rm, std::string filename, const u
   bm.unpin(fm, pageId);
 
 
-  // Add tuple header for each page directory
+  // Add tuple header for each page 
   TuplePage tp{ 0, fm.getBlockSize(), 0, fm.getBlockSize() };
   for (u64 i = 1; i <= newPages; ++i) {
     PageId tuplePageId{ filename, i };
@@ -159,8 +159,9 @@ PageId HeapFile::appendHeapFilePageDirectory(ResourceManager& rm, std::string fi
     pd = (PageDirectory*)bf->bufferData.data();
   }
 
-  // append a new page
-  u32 lastPageNumber = fm.append(currentPageId) - 1;
+  // previous last page directory
+  // set next pointer to the new page id created.
+  u32 lastPageNumber = fm.append(currentPageId.filename) - 1;
   pd->nextPage = lastPageNumber;
   bf->modify(&pd, sizeof(PageDirectory), 0);
   bm.unpin(fm, currentPageId);
@@ -220,7 +221,7 @@ PageId HeapFile::appendNewHeapPage(ResourceManager& rm, std::string filename) {
     pd = (PageDirectory*)bf->bufferData.data();
   }
 
-  u32 lastPageNumber = fm.append(currentPageId) - 1;
+  u32 lastPageNumber = fm.append(currentPageId.filename) - 1;
 
   // Add page entry to the page directory
   u32 freeSpace = fm.getBlockSize() - ((u32)sizeof(TuplePage));
@@ -239,6 +240,53 @@ PageId HeapFile::appendNewHeapPage(ResourceManager& rm, std::string filename) {
 
   return tuplePageId;
 }
+
+
+void HeapFile::insertTuples(std::shared_ptr<ResourceManager> rm, Schema& schema, std::vector<Tuple>& tuples) {
+  std::sort(begin(tuples), end(tuples), [](auto& lhs, auto& rhs) {
+    return lhs.recordSize < rhs.recordSize;
+    });
+
+  HeapFile::HeapFileIterator iter(schema.filename, rm);
+  iter.findFirstDir();
+  for (auto& tuple : tuples) {
+    iter.traverseFromStartTilFindSpace(tuple.recordSize);
+    BufferFrame* tupleFrame = iter.getPageBuffer();
+    TuplePage* pe = reinterpret_cast<TuplePage*>(tupleFrame->bufferData.data());
+    Slot* slot = reinterpret_cast<Slot*>(tupleFrame->bufferData.data() + sizeof(TuplePage));
+    u32 numberOfSlots = pe->numberOfSlots;
+
+    // find an empty slot
+    u32 emptySlotIdx = u32Max;
+    for (u32 i = 0; i < numberOfSlots; ++i) {
+      if (!slot[i].isOccupied()) {
+        emptySlotIdx = i;
+        break;
+      }
+    }
+
+    if (emptySlotIdx == u32Max) {
+      emptySlotIdx = numberOfSlots;
+      pe->numberOfSlots += 1;
+    }
+
+    // Set current slot to be occupied
+    auto& currSlot = slot[emptySlotIdx];
+    u32 offset = pe->lastOccupiedPosition - tuple.recordSize;
+    currSlot.setOccupied(true);
+    currSlot.setOffset(offset);
+
+    // Write the tuple to the buffer
+    for (auto& field : tuple.fields) {
+      field->write(tupleFrame->bufferData.data(), offset);
+      offset += field->getLength();
+    }
+    pe->lastOccupiedPosition = offset;
+    tupleFrame->dirty = true;
+  }
+}
+
+
 
 void HeapFile::insertTuple(ResourceManager& rm, Schema& schema, Tuple& tuple) {
   auto& fm = rm.fm;
