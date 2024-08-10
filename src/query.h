@@ -116,6 +116,7 @@ public:
 class ReadField {
 public:
   virtual ~ReadField() = default;
+  virtual std::unique_ptr<ReadField> clone() = 0;
   virtual std::unique_ptr<WriteField> get(const char* buffer, u32 offset) = 0;
   virtual std::unique_ptr<WriteField> get(Token token) = 0;
 };
@@ -145,7 +146,11 @@ public:
 class ReadVarCharField : public ReadField {
 public:
   ReadVarCharField() {}
-  virtual ~ReadVarCharField() override = default;
+  virtual ~ReadVarCharField() = default;
+
+  virtual std::unique_ptr<ReadField> clone() override {
+    return std::make_unique<ReadVarCharField>();
+  }
 
   virtual std::unique_ptr<WriteField> get(const char* buffer, u32 offset) override {
     u32 length;
@@ -183,6 +188,10 @@ public:
   ReadFixedCharField(int length) : length{ length } {}
   virtual ~ReadFixedCharField() override = default;
 
+  virtual std::unique_ptr<ReadField> clone() override {
+    return std::make_unique<ReadFixedCharField>(length);
+  }
+
   virtual std::unique_ptr<WriteField> get(const char* buffer, u32 offset) override {
     std::string value(buffer + offset);
     return std::make_unique<FixedCharField>(length, value);
@@ -213,6 +222,10 @@ class ReadIntField : public ReadField {
 public:
   ReadIntField() {}
   virtual ~ReadIntField() override = default;
+
+  virtual std::unique_ptr<ReadField> clone() override {
+    return std::make_unique<ReadIntField>();
+  }
 
   virtual std::unique_ptr<WriteField> get(const char* buffer, u32 offset) override {
     i32 value;
@@ -352,6 +365,22 @@ struct Schema {
   std::unordered_map<std::string, std::unique_ptr<ReadField>> fieldMap;
 
   Schema(std::string filename) : filename{ filename } {};
+  Schema(const Schema& other) : filename{ other.filename }, fieldList{ other.fieldList } {
+    for (auto& field : other.fieldMap) {
+      fieldMap[field.first] = field.second->clone();
+    }
+  }
+  Schema& operator==(const Schema& other) {
+    if (this == &other) {
+      return *this;
+    }
+    filename = other.filename;
+    fieldList = other.fieldList;
+    for (auto& field : other.fieldMap) {
+      fieldMap[field.first] = field.second->clone();
+    }
+    return *this;
+  }
 
   void addField(std::string fieldName, std::unique_ptr<ReadField> field) {
     fieldMap[fieldName] = std::move(field);

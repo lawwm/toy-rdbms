@@ -17,6 +17,7 @@ Constant Field::getConstant(Tuple& tuple, Schema& schema) {
       return tuple.fields[i]->getConstant();
     }
   }
+  // to do, add empty constant...
 }
 
 Constant Constant::getConstant(Tuple& tuple, Schema& schema) {

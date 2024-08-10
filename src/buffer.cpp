@@ -273,6 +273,7 @@ void HeapFile::insertTuples(std::shared_ptr<ResourceManager> rm, Schema& schema,
     // Set current slot to be occupied
     auto& currSlot = slot[emptySlotIdx];
     u32 offset = pe->lastOccupiedPosition - tuple.recordSize;
+    pe->lastOccupiedPosition -= tuple.recordSize;
     currSlot.setOccupied(true);
     currSlot.setOffset(offset);
 
@@ -281,7 +282,6 @@ void HeapFile::insertTuples(std::shared_ptr<ResourceManager> rm, Schema& schema,
       field->write(tupleFrame->bufferData.data(), offset);
       offset += field->getLength();
     }
-    pe->lastOccupiedPosition = offset;
     tupleFrame->dirty = true;
   }
 }

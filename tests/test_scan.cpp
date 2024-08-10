@@ -6,23 +6,20 @@
 
 
 TEST_CASE("Insert tuple") {
-  const std::string fileName = "testFile";
+  const std::string fileName = "employee";
   DeferDeleteFile deferDeleteFile(fileName);
   {
     std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(PAGE_SIZE_M, 10);
 
     HeapFile::createHeapFile(*rm, fileName);
 
+    // Create schema
     Schema schema(fileName);
     schema.addField("name", std::make_unique<ReadVarCharField>());
     schema.addField("employment", std::make_unique<ReadFixedCharField>(20));
     schema.addField("age", std::make_unique<ReadIntField>());
 
-    std::vector<std::unique_ptr<WriteField>> writeFields;
-    writeFields.emplace_back(std::make_unique<VarCharField>("memes lol haha"));
-    writeFields.emplace_back(std::make_unique<FixedCharField>(20, "fixed char"));
-    writeFields.emplace_back(std::make_unique<IntField>(4));
-
+    // Create tokens
     std::vector<std::vector<Token>> listOfListOfTokens{
     { ttoken("Alicia"), ttoken("Doctor"), ttoken(27) },
     { ttoken("Brian"), ttoken("Engineer"), ttoken(34) },
@@ -36,26 +33,55 @@ TEST_CASE("Insert tuple") {
     { ttoken("Jack"), ttoken("Architect"), ttoken(36) }
     };
 
-    std::vector<Tuple> tuples;
+    // Create tuples and insert into the table
+    // Ensure can write into files
+    std::vector<Tuple> writeTuples;
     for (auto tokenList : listOfListOfTokens) {
-      tuples.push_back(schema.createTuple(tokenList));
+      writeTuples.push_back(schema.createTuple(tokenList));
+    }
+    // tuples will be sorted by length within this function
+    HeapFile::insertTuples(rm, schema, writeTuples);
+
+
+    // Ensure can read from file
+    std::unique_ptr<Scan> tableScan = std::make_unique<TableScan>(fileName, rm, schema);
+    std::vector<Tuple> readTuples;
+    tableScan->getFirst();
+    while (tableScan->next()) {
+      auto result = tableScan->get();
+      readTuples.push_back(std::move(result));
     }
 
-    // write after free
-    HeapFile::insertTuple(*rm, schema, tuples[0]);
-    std::vector<std::unique_ptr<ReadField>> readFields;
+    // Ensure that the tuples are the same
+    REQUIRE(readTuples.size() == writeTuples.size());
 
-    TableScan scan(fileName, rm, std::move(schema));
-    scan.getFirst();
-    scan.next();
-    auto result = scan.get();
-    std::vector<Constant> constants;
-    for (int i = 0; i < result.fields.size(); i++) {
-      constants.push_back(result.fields[i]->getConstant());
+
+    for (int i = 0; i < writeTuples.size(); i++) {
+      auto& writeTuple = writeTuples[i];
+      auto& readTuple = readTuples[i];
+      for (int j = 0; j < writeTuple.fields.size(); j++) {
+        auto writtenConstant = writeTuple.fields[j]->getConstant();
+        auto readConstant = readTuple.fields[j]->getConstant();
+        REQUIRE(writtenConstant == readConstant);
+      }
     }
-    REQUIRE(constants[0] == Constant("Alicia"));
-    REQUIRE(constants[1] == Constant("Doctor"));
-    REQUIRE(constants[2] == Constant(27));
+
+    // Ensure you can do a selection on a table scan
+    auto predicate = std::make_unique<Predicate>(
+      std::make_unique<Term>(TermOperand::GREATER_EQUAL, std::make_unique<Field>(fileName, "age"), std::make_unique<Constant>(38))
+    );
+    SelectScan selectedScan(std::move(tableScan), std::move(predicate), schema);
+
+    std::vector<Tuple> selectedTuples;
+    selectedScan.getFirst();
+    while (selectedScan.next()) {
+      auto result = selectedScan.get();
+      selectedTuples.push_back(std::move(result));
+    }
+
+    REQUIRE(selectedTuples.size() == 2);
+
+    int a = 0;
   }
 }
 

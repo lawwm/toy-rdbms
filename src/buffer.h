@@ -324,8 +324,8 @@ namespace HeapFile {
     std::string filename;
     std::shared_ptr<ResourceManager> resourceManager;
   public:
-    HeapFileIterator(std::string filename, std::shared_ptr<ResourceManager> rm) : filename{ filename },
-      resourceManager{ rm }, pageBuffer{ nullptr }, pageEntryIndex{ u32Max } {
+    HeapFileIterator(std::string filename, std::shared_ptr<ResourceManager> rm) : pageBuffer{ nullptr }, pageEntryIndex{ u32Max }, filename{ filename },
+      resourceManager{ rm } {
       pageDirectoryId = PageId{ filename, 0 };
       pageDirBuffer = resourceManager->bm.pin(resourceManager->fm, pageDirectoryId);
     };

@@ -24,12 +24,18 @@ bool TableScan::findNextPage() {
 }
 
 bool TableScan::getFirst() {
+  if (currBuffer && currentPageId.pageNumber != 0) {
+    rm->bm.unpin(rm->fm, currentPageId);
+  }
   currentPageId = PageId{ currentPageId.filename, 0 };
   currBuffer = rm->bm.pin(rm->fm, currentPageId);
   return true;
 }
 
 bool TableScan::next() {
+  if (!currBuffer) {
+    return false;
+  }
   while (true) {
     TuplePage* pe = reinterpret_cast<TuplePage*>(currBuffer->bufferData.data());
     if (pe->pageType != PageType::TuplePage) {

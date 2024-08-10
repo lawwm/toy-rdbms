@@ -299,6 +299,8 @@ std::vector<Tuple> Parser::parseInsert()
     this->addError("Expected semicolon");
   }
   lexer.nextToken();
+
+  return {};
 };
 
 
