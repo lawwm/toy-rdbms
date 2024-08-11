@@ -1,11 +1,11 @@
 #include "catch.hpp"
 
-#include "../src/buffer.h"
 #include <vector>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
 #include "./test_utils.h"
+#include "../src/buffer.h"
 
 TEST_CASE("Check buffer works") {
 

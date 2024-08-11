@@ -225,8 +225,10 @@ Query Parser::parseQuery()
   return query;
 }
 
-std::vector<Tuple> Parser::parseInsert()
+Insert Parser::parseInsert()
 {
+  Insert insertStmt;
+
   // parse table name
   if (!lexer.matchToken(INSERT)) {
     this->addError("Expected INSERT keyword");
@@ -240,29 +242,26 @@ std::vector<Tuple> Parser::parseInsert()
   if (!lexer.matchToken(IDENTIFIER)) {
     this->addError("Expected table name");
   }
+
+  // store table value
   auto tableToken = lexer.nextToken();
+  insertStmt.table = tableToken.lexeme;
 
-  // parse table fields
-  if (!lexer.matchToken(LEFT_PAREN)) {
-    this->addError("Expected left parenthesis");
-  }
-  lexer.nextToken();
-
-  std::vector<std::string> fields;
-  while (lexer.matchToken(IDENTIFIER)) {
-    fields.push_back(lexer.nextToken().lexeme);
-    if (lexer.matchToken(COMMA)) {
-      lexer.nextToken();
+  // parse specific columns
+  if (lexer.matchToken(LEFT_PAREN)) {
+    lexer.nextToken();
+    while (lexer.matchToken(IDENTIFIER)) {
+      insertStmt.fields.push_back(lexer.nextToken().lexeme);
+      if (lexer.matchToken(COMMA)) {
+        lexer.nextToken();
+      }
     }
+    if (!lexer.matchToken(RIGHT_PAREN)) {
+      this->addError("Expected right parenthesis");
+    }
+    lexer.nextToken();
   }
 
-  if (!lexer.matchToken(RIGHT_PAREN)) {
-    this->addError("Expected right parenthesis");
-  }
-  lexer.nextToken();
-
-
-  std::vector<Tuple> tuples;
   if (!lexer.matchToken(VALUES)) {
     this->addError("Expected VALUES keyword");
   }
@@ -270,39 +269,98 @@ std::vector<Tuple> Parser::parseInsert()
 
   // parse tuples
   do {
-    if (lexer.matchToken(COMMA))
-    {
-      lexer.nextToken();
-    }
     if (!lexer.matchToken(LEFT_PAREN)) {
       this->addError("Expected left parenthesis");
     }
     lexer.nextToken();
 
-    std::vector<std::string> values;
+    std::vector<Token> values;
     do {
-      if (lexer.matchToken(COMMA))
-      {
+      values.push_back(lexer.nextToken());
+      if (lexer.matchToken(COMMA)) {
         lexer.nextToken();
       }
-      auto valueToken = lexer.nextToken();
-    } while (lexer.matchToken(COMMA));
+      else {
+        break;
+      }
+    } while (true);
+
+    insertStmt.values.push_back(std::move(values));
 
     if (!lexer.matchToken(RIGHT_PAREN)) {
       this->addError("Expected right parenthesis");
     }
     lexer.nextToken();
 
-  } while (lexer.matchToken(COMMA));
+
+    if (lexer.matchToken(COMMA)) {
+      lexer.nextToken();
+      continue;
+    }
+    else {
+      break;
+    }
+  } while (true);
 
   if (!lexer.matchToken(SEMI_COLON)) {
     this->addError("Expected semicolon");
   }
   lexer.nextToken();
 
-  return {};
+  return insertStmt;
 };
 
+
+Schema Parser::parseCreate() {
+
+  if (!lexer.matchToken(CREATE)) {
+    this->addError("Expected CREATE keyword");
+  }
+  lexer.nextToken();
+  if (!lexer.matchToken(TABLE)) {
+    this->addError("Expected TABLE keyword");
+  }
+  lexer.nextToken();
+
+  auto tableName = lexer.nextToken();
+
+  if (!lexer.matchToken(LEFT_PAREN)) {
+    this->addError("Expected left parenthesis");
+  }
+  lexer.nextToken();
+  Schema schema(tableName.lexeme);
+
+  do {
+    // get field name
+    auto fieldName = lexer.nextToken();
+
+    // store type
+    auto fieldType = this->parseType();
+    if (fieldType != nullptr) {
+      schema.addField(fieldName.lexeme, std::move(fieldType));
+    }
+
+    if (lexer.matchToken(COMMA)) {
+      lexer.nextToken();
+      continue;
+    }
+    else {
+      break;
+    }
+
+  } while (true);
+
+  if (!lexer.matchToken(RIGHT_PAREN)) {
+    this->addError("Expected right parenthesis");
+  }
+  lexer.nextToken();
+  if (!lexer.matchToken(SEMI_COLON)) {
+    this->addError("Expected semicolon");
+  }
+  lexer.nextToken();
+
+  return schema;
+}
 
 void Parser::parseTable(Query& query)
 {
@@ -456,4 +514,44 @@ std::unique_ptr<TableValue> Parser::parseValue()
   // display error here.
   errors.push_back(ErrorMessage{ "Expected a value" });
   return nullptr;
+}
+
+std::unique_ptr<ReadField> Parser::parseType() {
+  auto fieldType = lexer.nextToken();
+  if (fieldType.tokenType != IDENTIFIER) {
+    this->addError("Expected field type");
+  }
+
+  if (fieldType.lexeme == "INT") {
+    return std::make_unique<ReadIntField>();
+  }
+  else if (fieldType.lexeme == "VARCHAR" || fieldType.lexeme == "CHAR") {
+
+    u32 defaultFieldSize = 100;
+
+    if (lexer.matchToken(LEFT_PAREN)) {
+      lexer.nextToken();
+      auto fieldSize = lexer.nextToken();
+      if (fieldSize.tokenType != NUMBER) {
+        this->addError("Expected field size");
+      }
+      if (!lexer.matchToken(RIGHT_PAREN)) {
+        this->addError("Expected right parenthesis");
+      }
+      lexer.nextToken();
+
+      defaultFieldSize = fieldSize.digit;
+    }
+
+    if (fieldType.lexeme == "VARCHAR") {
+      return std::make_unique<ReadVarCharField>();
+    }
+    else {
+      return std::make_unique<ReadFixedCharField>(defaultFieldSize);
+    }
+  }
+  else {
+    this->addError("Invalid field type");
+    return nullptr;
+  }
 }

@@ -102,6 +102,11 @@ void FileManager::createFileIfNotExists(const std::string& fileName) {
   outfile.close();
 }
 
+bool FileManager::doesFileExists(const std::string& fileName)
+{
+  return std::filesystem::exists(fileName);
+}
+
 void HeapFile::createHeapFile(ResourceManager& rm, std::string filename, const u32 newPages) {
   auto& fm = rm.fm;
   auto& bm = rm.bm;

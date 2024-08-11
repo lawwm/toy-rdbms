@@ -9,24 +9,27 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Ensure exceptions are enabled
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    add_compile_options(-fexceptions)
-endif()
+# if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+#     add_compile_options(-fexceptions)
+# endif()
 
 #include directories
 include_directories(include)
 
+file(GLOB_RECURSE NEWSQL_SRC "src/*.cpp" "src/*.h")
+
 # Add source to this project's executable.
-add_executable (newsql "src/main.cpp"  "src/parser.cpp" "src/query.h" "src/buffer.h" "src/buffer.cpp" "tests/test_buffer.cpp" "src/common.h" "src/query.cpp" "src/scan.h" "src/scan.cpp" "tests/test_scan.cpp" "tests/test_utils.h")
+add_executable (newsql ${NEWSQL_SRC})
 
 
+file(GLOB_RECURSE TEST_SRC "tests/*.cpp" "tests/*.h" "src/*.h" "src/query.cpp" "src/scan.cpp" "src/parser.cpp" "src/buffer.cpp" "src/planner.cpp")
+
+foreach(file ${TEST_SRC})
+    message(STATUS "${file}")
+endforeach()
 
 # Add the Catch2 test executable
-file(GLOB headers "src/parser.h" "src/query.h" "src/buffer.h" "src/common.h" "src/scan.h" "tests/test_utils.h")
-file(GLOB srcs "tests/test_main.cpp" "tests/test_parser.cpp" "src/parser.cpp" "src/buffer.cpp" "tests/test_buffer.cpp"  "src/query.cpp" "src/scan.cpp" "tests/test_scan.cpp")
-
-
-add_executable(testsql ${srcs} "tests/test_utils.h")
+add_executable(testsql ${TEST_SRC} "include/catch.hpp")
 target_include_directories(testsql PRIVATE include)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)

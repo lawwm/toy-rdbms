@@ -80,8 +80,6 @@ TEST_CASE("Insert tuple") {
     }
 
     REQUIRE(selectedTuples.size() == 2);
-
-    int a = 0;
   }
 }
 

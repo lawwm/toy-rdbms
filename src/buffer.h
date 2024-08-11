@@ -138,6 +138,8 @@ public:
   u32 getNumberOfPages(std::string filename);
 
   void createFileIfNotExists(const std::string& fileName);
+
+  bool doesFileExists(const std::string& fileName);
 };
 
 
@@ -537,5 +539,4 @@ namespace HeapFile {
       return remainingSize >= sizeof(PageEntry);
     }
   };
-
 };

@@ -85,7 +85,6 @@ public:
     return str < other.str;
   }
 
-private:
   ConstantType constantType;
   int num;
   std::string str;
@@ -119,6 +118,7 @@ public:
   virtual std::unique_ptr<ReadField> clone() = 0;
   virtual std::unique_ptr<WriteField> get(const char* buffer, u32 offset) = 0;
   virtual std::unique_ptr<WriteField> get(Token token) = 0;
+  virtual std::string serializeType() = 0;
 };
 
 
@@ -141,6 +141,8 @@ public:
   virtual Constant getConstant() override {
     return Constant(value);
   }
+
+
 };
 
 class ReadVarCharField : public ReadField {
@@ -160,6 +162,10 @@ public:
   }
 
   virtual std::unique_ptr<WriteField> get(Token token) override;
+
+  virtual std::string serializeType() override {
+    return "VARCHAR";
+  }
 };
 
 class FixedCharField : public WriteField {
@@ -179,6 +185,8 @@ public:
   virtual Constant getConstant() override {
     return Constant(value);
   }
+
+
 };
 
 class ReadFixedCharField : public ReadField {
@@ -198,6 +206,10 @@ public:
   }
 
   virtual std::unique_ptr<WriteField> get(Token token) override;
+
+  virtual std::string serializeType() override {
+    return "CHAR(" + std::to_string(length) + ")";
+  }
 };
 
 class IntField : public WriteField {
@@ -234,6 +246,10 @@ public:
   }
 
   virtual std::unique_ptr<WriteField> get(Token token) override;
+
+  virtual std::string serializeType() override {
+    return "INT";
+  }
 };
 
 struct Tuple {
@@ -359,6 +375,19 @@ public:
   std::vector<std::unique_ptr<Predicate>> predicate;
 };
 
+struct Insert {
+  std::string table;
+  std::vector<std::string > fields;
+  std::vector<std::vector<Token>> values;
+};
+
+
+const std::string TABLE_NAME = "table_name";
+const std::string FIELD_NAME = "field_name";
+const std::string FIELD_TYPE = "field_type";
+const std::string ORDER = "order";
+const std::string SCHEMA_TABLE = "schema";
+
 struct Schema {
   std::string filename;
   std::vector<std::string> fieldList;
@@ -370,6 +399,7 @@ struct Schema {
       fieldMap[field.first] = field.second->clone();
     }
   }
+  Schema(Schema&& other) : filename{ std::move(other.filename) }, fieldList{ std::move(other.fieldList) }, fieldMap{ std::move(other.fieldMap) } {}
   Schema& operator==(const Schema& other) {
     if (this == &other) {
       return *this;
@@ -382,20 +412,49 @@ struct Schema {
     return *this;
   }
 
+  Schema& operator==(Schema&& other) {
+    if (this == &other) {
+      return *this;
+    }
+    filename = std::move(other.filename);
+    fieldList = std::move(other.fieldList);
+    fieldMap = std::move(other.fieldMap);
+    return *this;
+  }
+
   void addField(std::string fieldName, std::unique_ptr<ReadField> field) {
     fieldMap[fieldName] = std::move(field);
     fieldList.push_back(fieldName);
   }
 
   Tuple createTuple(std::vector<Token>& token);
+
+  std::vector<Tuple> createSchemaTuple() {
+    std::vector<Tuple> tuples;
+    for (int i = 0; i < fieldList.size(); ++i) {
+      std::vector<std::unique_ptr<WriteField>> writeFields;
+      writeFields.push_back(std::make_unique<VarCharField>(TABLE_NAME));
+      writeFields.push_back(std::make_unique<VarCharField>(fieldList[i]));
+      writeFields.push_back(std::make_unique<VarCharField>(fieldMap[fieldList[i]]->serializeType()));
+      writeFields.push_back(std::make_unique<IntField>(i));
+      tuples.push_back(Tuple(std::move(writeFields)));
+    }
+
+    return tuples;
+  }
 };
+
+
+struct ResourceManager;
+std::unordered_map<std::string, Schema> getSchemaFromTableName(std::vector<std::string> tblNames, std::shared_ptr<ResourceManager> rm);
 
 // schema table
 static Schema schemaTable = []() {
-  Schema schemaTable("schema");
-  schemaTable.addField("filename", std::make_unique<ReadVarCharField>());
-  schemaTable.addField("field_name", std::make_unique<ReadVarCharField>());
-  schemaTable.addField("field_type", std::make_unique<ReadVarCharField>());
+  Schema schemaTable(SCHEMA_TABLE);
+  schemaTable.addField(TABLE_NAME, std::make_unique<ReadVarCharField>());
+  schemaTable.addField(FIELD_NAME, std::make_unique<ReadVarCharField>());
+  schemaTable.addField(FIELD_TYPE, std::make_unique<ReadVarCharField>());
+  schemaTable.addField(ORDER, std::make_unique<ReadIntField>()); // start from zero
   return schemaTable;
   }();
 

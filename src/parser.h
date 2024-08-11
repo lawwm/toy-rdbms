@@ -70,10 +70,12 @@ private:
 public:
   Parser(std::string input) : lexer(input) {};
   Query parseQuery();
-  std::vector<Tuple> parseInsert();
+  Insert parseInsert();
+  Schema parseCreate();
   void parseTable(Query& query);
   std::unique_ptr<Predicate> parsePredicate();
   std::unique_ptr<Term> parseTerm();
   std::unique_ptr<TableValue> parseValue();
+  std::unique_ptr<ReadField> parseType();
 
 };

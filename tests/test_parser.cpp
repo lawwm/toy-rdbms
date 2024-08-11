@@ -1,8 +1,8 @@
-
 #include "catch.hpp"
 
 #include "../src/parser.h"
 #include <vector>
+#include <memory>
 
 TEST_CASE("Lexer succeeds for normal query") {
   auto s = R"(SELECT * 
@@ -105,3 +105,39 @@ TEST_CASE("Parser succeeds for 3 table join without parenthesis") {
   REQUIRE(*thirdPredicate == *query.predicate[2]);
 }
 
+TEST_CASE("Parser succeeds for create table") {
+  auto cmd = R"(CREATE TABLE citizen(
+                  name VARCHAR(30),
+                  employment CHAR(20),                    
+                  age INT
+                );)";
+
+  Parser parser(cmd);
+  auto schema = parser.parseCreate();
+  std::vector<std::string> expectedFieldNames{ "name", "employment", "age" };
+  REQUIRE(schema.filename == "citizen");
+  for (int i = 0; i < schema.fieldList.size(); ++i) {
+    REQUIRE(schema.fieldList[i] == expectedFieldNames[i]);
+  }
+
+  REQUIRE(dynamic_cast<ReadVarCharField*>(schema.fieldMap["name"].get()) != nullptr);
+  REQUIRE(dynamic_cast<ReadFixedCharField*>(schema.fieldMap["employment"].get()) != nullptr);
+  REQUIRE(dynamic_cast<ReadIntField*>(schema.fieldMap["age"].get()) != nullptr);
+}
+
+TEST_CASE("Parser succeeds for insert into table") {
+  auto cmd = R"(INSERT INTO citizen(name, employment, age) 
+                VALUES
+                  ("David", "Doctor", 27),
+                  ("Brian", "Engineer", 34),
+                  ("Catherine", "Teacher", 29),
+                  ("David", "Artist", 41);)";
+
+  Parser parser(cmd);
+  auto insert = parser.parseInsert();
+  REQUIRE(insert.table == "citizen");
+  REQUIRE(insert.fields[0] == "name");
+  REQUIRE(insert.fields[1] == "employment");
+  REQUIRE(insert.fields[2] == "age");
+  REQUIRE(insert.values.size() == 4);
+}
