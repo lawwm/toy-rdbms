@@ -14,10 +14,10 @@ TEST_CASE("Insert tuple") {
     HeapFile::createHeapFile(*rm, fileName);
 
     // Create schema
-    Schema schema(fileName);
-    schema.addField("name", std::make_unique<ReadVarCharField>());
-    schema.addField("employment", std::make_unique<ReadFixedCharField>(20));
-    schema.addField("age", std::make_unique<ReadIntField>());
+    Schema schema;
+    schema.addField(fileName, "name", std::make_unique<ReadVarCharField>());
+    schema.addField(fileName, "employment", std::make_unique<ReadFixedCharField>(20));
+    schema.addField(fileName, "age", std::make_unique<ReadIntField>());
 
     // Create tokens
     std::vector<std::vector<Token>> listOfListOfTokens{
@@ -40,7 +40,7 @@ TEST_CASE("Insert tuple") {
       writeTuples.push_back(schema.createTuple(tokenList));
     }
     // tuples will be sorted by length within this function
-    HeapFile::insertTuples(rm, schema, writeTuples);
+    HeapFile::insertTuples(rm, fileName, writeTuples);
 
 
     // Ensure can read from file
@@ -70,7 +70,7 @@ TEST_CASE("Insert tuple") {
     auto predicate = std::make_unique<Predicate>(
       std::make_unique<Term>(TermOperand::GREATER_EQUAL, std::make_unique<Field>(fileName, "age"), std::make_unique<Constant>(38))
     );
-    SelectScan selectedScan(std::move(tableScan), std::move(predicate), schema);
+    SelectScan selectedScan(std::move(tableScan), std::move(predicate));
 
     std::vector<Tuple> selectedTuples;
     selectedScan.getFirst();

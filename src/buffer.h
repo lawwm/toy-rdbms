@@ -292,8 +292,8 @@ namespace HeapFile {
   PageId appendNewHeapPage(ResourceManager& rm, std::string filename);
 
 
-  void insertTuple(ResourceManager& rm, Schema& schema, Tuple& tuple);
-  void insertTuples(std::shared_ptr<ResourceManager> rm, Schema& schema, std::vector<Tuple>& tuples);
+  void insertTuple(ResourceManager& rm, std::string filename, Tuple& tuple);
+  void insertTuples(std::shared_ptr<ResourceManager> rm, std::string filename, std::vector<Tuple>& tuples);
 
   /**
   There are Page Directories, which contains Page Entries.

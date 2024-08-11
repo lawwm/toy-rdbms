@@ -113,10 +113,12 @@ std::tuple<Token, int> Lexer::scanToken()
     }
     break;
   case '"':
+  case '\'':
   {
+    char startingQuote = input[start];
     start++;
     int end = start;
-    while (end < input.size() && input[end] != '"') {
+    while (end < input.size() && input[end] != startingQuote) {
       end++;
     }
     token = { STRING, line, input.substr(start, end - start) };
@@ -136,7 +138,7 @@ std::tuple<Token, int> Lexer::scanToken()
     }
     else if (isalpha(input[start])) {
       std::string lexeme = "";
-      while (start < input.size() && isalnum(input[start])) {
+      while (start < input.size() && (isalnum(input[start]) || input[start] == '_')) {
         lexeme += input[start];
         start++;
       }
@@ -344,7 +346,7 @@ Schema Parser::parseCreate() {
     this->addError("Expected left parenthesis");
   }
   lexer.nextToken();
-  Schema schema(tableName.lexeme);
+  Schema schema;
 
   do {
     // get field name
@@ -353,7 +355,7 @@ Schema Parser::parseCreate() {
     // store type
     auto fieldType = this->parseType();
     if (fieldType != nullptr) {
-      schema.addField(fieldName.lexeme, std::move(fieldType));
+      schema.addField(tableName.lexeme, fieldName.lexeme, std::move(fieldType));
     }
 
     if (lexer.matchToken(COMMA)) {

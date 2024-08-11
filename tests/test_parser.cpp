@@ -115,7 +115,7 @@ TEST_CASE("Parser succeeds for create table") {
   Parser parser(cmd);
   auto schema = parser.parseCreate();
   std::vector<std::string> expectedFieldNames{ "name", "employment", "age" };
-  REQUIRE(schema.filename == "citizen");
+  REQUIRE(schema.tableList.at(0) == "citizen");
   for (int i = 0; i < schema.fieldList.size(); ++i) {
     REQUIRE(schema.fieldList[i] == expectedFieldNames[i]);
   }

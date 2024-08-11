@@ -15,7 +15,7 @@ bool Field::operator==(const TableValue* other) const {
 
 Constant Field::getConstant(Tuple& tuple, Schema& schema) {
   for (int i = 0; i < schema.fieldList.size(); i++) {
-    if (schema.fieldList[i] == fieldName) {
+    if (schema.fieldList[i] == fieldName && schema.tableList[i] == table) {
       return tuple.fields[i]->getConstant();
     }
   }
@@ -85,7 +85,7 @@ std::unordered_map<std::string, Schema> getSchemaFromTableName(std::vector<std::
   }
 
   std::unique_ptr<Scan> tableScan = std::make_unique<TableScan>(SCHEMA_TABLE, rm, schemaTable);
-  std::unique_ptr<Scan> selectScan = std::make_unique<SelectScan>(std::move(tableScan), std::move(predicate), schemaTable);
+  std::unique_ptr<Scan> selectScan = std::make_unique<SelectScan>(std::move(tableScan), std::move(predicate));
 
   std::vector<Tuple> tuples;
   selectScan->getFirst();
@@ -108,13 +108,13 @@ std::unordered_map<std::string, Schema> getSchemaFromTableName(std::vector<std::
     std::string fieldType = tuple.fields[2]->getConstant().str;
 
     if (res.find(tableName) == res.end()) {
-      res.emplace(tableName, Schema(tableName));
+      res.emplace(tableName, Schema());
     }
 
     Parser parser(fieldType);
     auto writePtr = parser.parseType();
 
-    res.at(tableName).addField(fieldName, std::move(writePtr));
+    res.at(tableName).addField(tableName, fieldName, std::move(writePtr));
   }
 
   return res;

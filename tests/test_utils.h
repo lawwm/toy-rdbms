@@ -3,14 +3,17 @@
 #include "../src/parser.h"
 
 struct DeferDeleteFile {
-  std::string fileName;
-  DeferDeleteFile(const std::string& fileName) : fileName(fileName) {};
+  std::vector<std::string> fileNames;
+  DeferDeleteFile(const std::string& fileName) : fileNames({ fileName }) {};
+  DeferDeleteFile(const std::initializer_list<std::string>& fileNames) : fileNames(fileNames) {};
   ~DeferDeleteFile() {
-    if (std::filesystem::remove(fileName) != 0) {
-      std::cerr << "Error deleting file" << std::endl;
-    }
-    else {
-      std::cout << "File successfully deleted" << std::endl;
+    for (auto& fileName : fileNames) {
+      if (std::filesystem::remove(fileName) != 0) {
+        std::cerr << "Error deleting file" << std::endl;
+      }
+      else {
+        std::cout << "File successfully deleted" << std::endl;
+      }
     }
   }
 };

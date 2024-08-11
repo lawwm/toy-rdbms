@@ -247,12 +247,12 @@ PageId HeapFile::appendNewHeapPage(ResourceManager& rm, std::string filename) {
 }
 
 
-void HeapFile::insertTuples(std::shared_ptr<ResourceManager> rm, Schema& schema, std::vector<Tuple>& tuples) {
+void HeapFile::insertTuples(std::shared_ptr<ResourceManager> rm, std::string filename, std::vector<Tuple>& tuples) {
   std::sort(begin(tuples), end(tuples), [](auto& lhs, auto& rhs) {
     return lhs.recordSize < rhs.recordSize;
     });
 
-  HeapFile::HeapFileIterator iter(schema.filename, rm);
+  HeapFile::HeapFileIterator iter(filename, rm);
   iter.findFirstDir();
   for (auto& tuple : tuples) {
     iter.traverseFromStartTilFindSpace(tuple.recordSize);
@@ -293,11 +293,11 @@ void HeapFile::insertTuples(std::shared_ptr<ResourceManager> rm, Schema& schema,
 
 
 
-void HeapFile::insertTuple(ResourceManager& rm, Schema& schema, Tuple& tuple) {
+void HeapFile::insertTuple(ResourceManager& rm, std::string filename, Tuple& tuple) {
   auto& fm = rm.fm;
   auto& bm = rm.bm;
 
-  PageId pageId{ schema.filename, 0 };
+  PageId pageId{ filename, 0 };
   BufferFrame* bf = bm.pin(fm, pageId);
 
   PageDirectory* pd = (PageDirectory*)bf->bufferData.data();
@@ -320,14 +320,14 @@ void HeapFile::insertTuple(ResourceManager& rm, Schema& schema, Tuple& tuple) {
   if (pageNumberChosen == -1)
   {
     // if no space for tuple
-    PageId newPage = appendNewHeapPage(rm, schema.filename);
+    PageId newPage = appendNewHeapPage(rm, filename);
     pageNumberChosen = newPage.pageNumber;
   }
 
   bm.unpin(fm, pageId);
 
   // Get the headers
-  PageId tuplePageId{ schema.filename, pageNumberChosen };
+  PageId tuplePageId{ filename, pageNumberChosen };
   BufferFrame* tupleFrame = bm.pin(fm, tuplePageId);
   TuplePage* pe = reinterpret_cast<TuplePage*>(tupleFrame->bufferData.data());
   Slot* slot = reinterpret_cast<Slot*>(tupleFrame->bufferData.data() + sizeof(TuplePage));

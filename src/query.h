@@ -389,22 +389,24 @@ const std::string ORDER = "order";
 const std::string SCHEMA_TABLE = "schema";
 
 struct Schema {
-  std::string filename;
+  std::vector<std::string> tableList;
   std::vector<std::string> fieldList;
   std::unordered_map<std::string, std::unique_ptr<ReadField>> fieldMap;
 
-  Schema(std::string filename) : filename{ filename } {};
-  Schema(const Schema& other) : filename{ other.filename }, fieldList{ other.fieldList } {
+  Schema() {};
+  Schema(const Schema& other) : tableList{ other.tableList }, fieldList{ other.fieldList } {
     for (auto& field : other.fieldMap) {
       fieldMap[field.first] = field.second->clone();
     }
   }
-  Schema(Schema&& other) : filename{ std::move(other.filename) }, fieldList{ std::move(other.fieldList) }, fieldMap{ std::move(other.fieldMap) } {}
+  Schema(Schema&& other) : tableList{ std::move(other.tableList) }, fieldList{ std::move(other.fieldList) },
+    fieldMap{ std::move(other.fieldMap) } {}
+
   Schema& operator==(const Schema& other) {
     if (this == &other) {
       return *this;
     }
-    filename = other.filename;
+    tableList = other.tableList;
     fieldList = other.fieldList;
     for (auto& field : other.fieldMap) {
       fieldMap[field.first] = field.second->clone();
@@ -416,14 +418,15 @@ struct Schema {
     if (this == &other) {
       return *this;
     }
-    filename = std::move(other.filename);
+    tableList = std::move(other.tableList);
     fieldList = std::move(other.fieldList);
     fieldMap = std::move(other.fieldMap);
     return *this;
   }
 
-  void addField(std::string fieldName, std::unique_ptr<ReadField> field) {
+  void addField(std::string tableName, std::string fieldName, std::unique_ptr<ReadField> field) {
     fieldMap[fieldName] = std::move(field);
+    tableList.push_back(tableName);
     fieldList.push_back(fieldName);
   }
 
@@ -433,7 +436,7 @@ struct Schema {
     std::vector<Tuple> tuples;
     for (int i = 0; i < fieldList.size(); ++i) {
       std::vector<std::unique_ptr<WriteField>> writeFields;
-      writeFields.push_back(std::make_unique<VarCharField>(filename));
+      writeFields.push_back(std::make_unique<VarCharField>(tableList[i]));
       writeFields.push_back(std::make_unique<VarCharField>(fieldList[i]));
       writeFields.push_back(std::make_unique<VarCharField>(fieldMap[fieldList[i]]->serializeType()));
       writeFields.push_back(std::make_unique<IntField>(i));
@@ -450,11 +453,11 @@ std::unordered_map<std::string, Schema> getSchemaFromTableName(std::vector<std::
 
 // schema table
 static Schema schemaTable = []() {
-  Schema schemaTable(SCHEMA_TABLE);
-  schemaTable.addField(TABLE_NAME, std::make_unique<ReadVarCharField>());
-  schemaTable.addField(FIELD_NAME, std::make_unique<ReadVarCharField>());
-  schemaTable.addField(FIELD_TYPE, std::make_unique<ReadVarCharField>());
-  schemaTable.addField(ORDER, std::make_unique<ReadIntField>()); // start from zero
+  Schema schemaTable;
+  schemaTable.addField(SCHEMA_TABLE, TABLE_NAME, std::make_unique<ReadVarCharField>());
+  schemaTable.addField(SCHEMA_TABLE, FIELD_NAME, std::make_unique<ReadVarCharField>());
+  schemaTable.addField(SCHEMA_TABLE, FIELD_TYPE, std::make_unique<ReadVarCharField>());
+  schemaTable.addField(SCHEMA_TABLE, ORDER, std::make_unique<ReadIntField>()); // start from zero
   return schemaTable;
   }();
 

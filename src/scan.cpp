@@ -78,6 +78,11 @@ Tuple TableScan::get() {
   return tuple;
 }
 
+Schema& TableScan::getSchema()
+{
+  return this->schema;
+}
+
 bool SelectScan::getFirst()
 {
   return this->scan->getFirst();
@@ -87,7 +92,7 @@ bool SelectScan::next()
 {
   while (this->scan->next()) {
     auto tuple = this->scan->get();
-    if (this->predicate->evaluate(tuple, this->schema)) {
+    if (this->predicate->evaluate(tuple, this->scan->getSchema())) {
       return true;
     }
   }
@@ -97,4 +102,72 @@ bool SelectScan::next()
 Tuple SelectScan::get()
 {
   return this->scan->get();
+}
+
+Schema& SelectScan::getSchema()
+{
+  return this->scan->getSchema();
+}
+
+bool ProductScan::getFirst()
+{
+  return leftScan->getFirst()
+    && leftScan->next()
+    && rightScan->getFirst();
+}
+
+bool ProductScan::next()
+{
+  if (rightScan->next()) {
+    return true;
+  }
+  else {
+    rightScan->getFirst();
+    return leftScan->next() && rightScan->next();
+  }
+}
+
+Tuple ProductScan::get()
+{
+  auto lhs = leftScan->get();
+  auto rhs = rightScan->get();
+  std::vector<std::unique_ptr<WriteField>> output;
+  for (auto& field : lhs.fields) {
+    output.push_back(std::move(field));
+  }
+  for (auto& field : rhs.fields) {
+    output.push_back(std::move(field));
+  }
+
+  return Tuple(std::move(output));
+}
+
+Schema& ProductScan::getSchema()
+{
+  return this->schema;
+}
+
+bool ProjectScan::getFirst()
+{
+  return this->scan->getFirst();
+}
+
+bool ProjectScan::next()
+{
+  return this->scan->next();
+}
+
+Tuple ProjectScan::get()
+{
+  auto innerTuple = scan->get();
+  std::vector<std::unique_ptr<WriteField>> output;
+  for (u32 index : mapToInnerSchema) {
+    output.push_back(std::move(innerTuple.fields[index]));
+  }
+  return Tuple(std::move(output));
+}
+
+Schema& ProjectScan::getSchema()
+{
+  return this->schema;
 }
