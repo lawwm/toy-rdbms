@@ -134,7 +134,7 @@ TEST_CASE("Create two tables, populate them and query a join") {
       employees 
       JOIN departments
       ON employees.department_id = departments.department_id
-      WHERE departments.budget >= 900000;
+      WHERE departments.budget >= 1200000;
     )";
 
     Executor executor(rm);
@@ -142,9 +142,34 @@ TEST_CASE("Create two tables, populate them and query a join") {
     executor.execute(createTable2);
     executor.execute(insertTable1);
     executor.execute(insertTable2);
-    executor.execute(query);
-  }
+    auto [resultTuples, msg] = executor.execute(query);
 
+    Schema schema;
+
+    // to do, add ordering in order to test properly
+    schema.addField("employees", "employee_name", std::make_unique<ReadVarCharField>());
+    schema.addField("departments", "department_name", std::make_unique<ReadFixedCharField>(50));
+    schema.addField("departments", "location", std::make_unique<ReadVarCharField>());
+    schema.addField("employees", "job_title", std::make_unique<ReadVarCharField>());
+    std::vector<std::vector<Token>> listOfListOfTokens{
+      {ttoken("Carol White"), ttoken("Data Science"), ttoken("Boston"), ttoken("Data Analyst")},
+      {ttoken("Bob Smith"), ttoken("Management"), ttoken("San Francisco"), ttoken("Project Manager")},
+    };
+    std::vector<Tuple> expectedTuples;
+    for (auto tokenList : listOfListOfTokens) {
+      expectedTuples.push_back(schema.createTuple(tokenList));
+    }
+
+    for (int i = 0; i < expectedTuples.size(); i++) {
+      auto& expectedTuple = expectedTuples[i];
+      auto& resultTuple = resultTuples[i];
+      for (int j = 0; j < expectedTuple.fields.size(); j++) {
+        auto expected = expectedTuple.fields[j]->getConstant();
+        auto result = resultTuple.fields[j]->getConstant();
+        REQUIRE(expected == result);
+      }
+    }
+  }
   //try {
   //  Executor executor(rm);
   //  for (auto& cmd : { createTable1, createTable2, insertTable1, insertTable2 }) {

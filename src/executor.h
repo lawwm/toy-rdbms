@@ -47,7 +47,7 @@ public:
     return lhs;
   }
 
-  void execute(std::string sqlStmt) {
+  std::tuple<std::vector<Tuple>, std::string> execute(std::string sqlStmt) {
     Parser parser(sqlStmt);
     std::variant<Query, Insert, Schema> stmt = parser.parseStatement();
     if (std::holds_alternative<Query>(stmt)) {
@@ -55,10 +55,12 @@ public:
       auto& queryStmt = std::get<Query>(stmt);
       auto scan = createBasicScan(queryStmt);
       scan->getFirst();
+      std::vector<Tuple> tuples;
       while (scan->next()) {
         auto tuple = scan->get();
-        int a = 0;
+        tuples.push_back(std::move(tuple));
       }
+      return { std::move(tuples), "" };
     }
     else if (std::holds_alternative<Insert>(stmt)) {
       // INSERT
@@ -71,6 +73,7 @@ public:
       }
       HeapFile::insertTuples(resourceManager, insertStmt.table, tuples);
 
+      return { std::move(tuples), "" };
     }
     else if (std::holds_alternative<Schema>(stmt)) {
       // CREATE
@@ -81,14 +84,16 @@ public:
       auto schemaMap = getSchemaFromTableName({ schema.tableList.at(0) }, resourceManager);
       if (schemaMap.size() > 0) {
         std::cout << "Table already exists\n";
-        return;
+        return { std::vector<Tuple>{} ,"Table already exists\n" };
       }
       // Base level schema, there can only be 1 and only 1 table
       HeapFile::createHeapFile(*resourceManager, schema.tableList.at(0), 8);
       HeapFile::insertTuples(resourceManager, SCHEMA_TABLE, tuples);
 
+      return { std::move(tuples), "" };
     }
 
+    return { std::vector<Tuple>{}, "" };
   }
 
 private:
