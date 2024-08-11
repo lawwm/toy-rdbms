@@ -3,6 +3,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <variant>
 
 #include "./query.h"
 
@@ -69,6 +70,8 @@ private:
   void addError(std::string message);
 public:
   Parser(std::string input) : lexer(input) {};
+
+  std::variant<Query, Insert, Schema> parseStatement();
   Query parseQuery();
   Insert parseInsert();
   Schema parseCreate();

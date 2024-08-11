@@ -433,7 +433,7 @@ struct Schema {
     std::vector<Tuple> tuples;
     for (int i = 0; i < fieldList.size(); ++i) {
       std::vector<std::unique_ptr<WriteField>> writeFields;
-      writeFields.push_back(std::make_unique<VarCharField>(TABLE_NAME));
+      writeFields.push_back(std::make_unique<VarCharField>(filename));
       writeFields.push_back(std::make_unique<VarCharField>(fieldList[i]));
       writeFields.push_back(std::make_unique<VarCharField>(fieldMap[fieldList[i]]->serializeType()));
       writeFields.push_back(std::make_unique<IntField>(i));

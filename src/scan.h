@@ -56,3 +56,7 @@ public:
 
   Tuple get() override;
 };
+
+//class ProductScan : public Scan {
+//
+//};

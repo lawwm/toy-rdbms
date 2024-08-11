@@ -19,7 +19,7 @@ include_directories(include)
 file(GLOB_RECURSE NEWSQL_SRC "src/*.cpp" "src/*.h")
 
 # Add source to this project's executable.
-add_executable (newsql ${NEWSQL_SRC})
+add_executable (newsql ${NEWSQL_SRC} "tests/test_executor.cpp")
 
 
 file(GLOB_RECURSE TEST_SRC "tests/*.cpp" "tests/*.h" "src/*.h" "src/query.cpp" "src/scan.cpp" "src/parser.cpp" "src/buffer.cpp" "src/planner.cpp")
@@ -29,7 +29,7 @@ foreach(file ${TEST_SRC})
 endforeach()
 
 # Add the Catch2 test executable
-add_executable(testsql ${TEST_SRC} "include/catch.hpp")
+add_executable(testsql ${TEST_SRC} "include/catch.hpp" "tests/test_executor.cpp")
 target_include_directories(testsql PRIVATE include)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)

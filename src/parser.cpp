@@ -189,6 +189,22 @@ void Parser::addError(std::string message)
   errors.push_back(ErrorMessage{ message, this->lexer.line });
 }
 
+std::variant<Query, Insert, Schema> Parser::parseStatement()
+{
+  if (lexer.matchToken(SELECT)) {
+    return this->parseQuery();
+  }
+  else if (lexer.matchToken(CREATE)) {
+    return this->parseCreate();
+  }
+  else if (lexer.matchToken(INSERT)) {
+    return this->parseInsert();
+  }
+  else {
+    throw "no proper statements given here, to refactor in the future";
+  }
+}
+
 Query Parser::parseQuery()
 {
   Query query;
