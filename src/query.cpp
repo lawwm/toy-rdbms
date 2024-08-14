@@ -44,6 +44,16 @@ std::unique_ptr<WriteField> ReadVarCharField::get(Token token) {
   }
 }
 
+std::unique_ptr<WriteField> ReadVarCharField::get(Constant constant) {
+  if (constant.constantType == ConstantType::STRING) {
+    return std::make_unique<VarCharField>(constant.str);
+  }
+  else {
+    return nullptr;
+  }
+}
+
+
 std::unique_ptr<WriteField> ReadFixedCharField::get(Token token) {
   if (token.tokenType != TokenType::STRING) {
     return nullptr;
@@ -53,12 +63,30 @@ std::unique_ptr<WriteField> ReadFixedCharField::get(Token token) {
   }
 }
 
+std::unique_ptr<WriteField> ReadFixedCharField::get(Constant constant) {
+  if (constant.constantType == ConstantType::STRING) {
+    return std::make_unique<FixedCharField>(length, constant.str);
+  }
+  else {
+    return nullptr;
+  }
+}
+
 std::unique_ptr<WriteField> ReadIntField::get(Token token) {
   if (token.tokenType != TokenType::NUMBER) {
     return nullptr;
   }
   else {
     return std::make_unique<IntField>(token.digit);
+  }
+}
+
+std::unique_ptr<WriteField> ReadIntField::get(Constant constant) {
+  if (constant.constantType == ConstantType::NUMBER) {
+    return std::make_unique<IntField>(constant.num);
+  }
+  else {
+    return nullptr;
   }
 }
 

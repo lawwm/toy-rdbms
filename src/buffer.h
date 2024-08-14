@@ -64,8 +64,6 @@ struct PageEntry {
   u32 freeSpace;
 };
 
-
-
 struct TuplePage {
   PageType pageType;
   u64 checkSum;
@@ -291,10 +289,6 @@ namespace HeapFile {
   // add new heap page
   PageId appendNewHeapPage(ResourceManager& rm, std::string filename);
 
-
-  void insertTuple(ResourceManager& rm, std::string filename, Tuple& tuple);
-  void insertTuples(std::shared_ptr<ResourceManager> rm, std::string filename, std::vector<Tuple>& tuples);
-
   /**
   There are Page Directories, which contains Page Entries.
 
@@ -309,6 +303,8 @@ namespace HeapFile {
 
   - when should you create a new page entry or a new page directory?
   - when you don't have enough space.
+
+  Problem with this iterator is that I open two buffers at any point in time.
 
   */
   class HeapFileIterator {
@@ -352,6 +348,12 @@ namespace HeapFile {
     *
     */
     bool findFirstDir() {
+
+      // set page buffer to nullptr
+      if (pageBuffer) {
+        resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
+      }
+
       if (pageDirectoryId.pageNumber == 0) {
         return true;
       }
@@ -359,11 +361,17 @@ namespace HeapFile {
         pageDirectoryId = PageId{ filename, 0 };
         resourceManager->bm.unpin(resourceManager->fm, pageDirBuffer->pageId);
         pageDirBuffer = resourceManager->bm.pin(resourceManager->fm, pageDirectoryId);
+
         return true;
       }
     };
 
     bool nextDir() {
+      // i should release current page buffer since it's doesn't belong to the next dir
+      if (pageBuffer) {
+        resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
+      }
+
       PageDirectory* pd = reinterpret_cast<PageDirectory*>(pageDirBuffer->bufferData.data());
       if (pd->nextPage == u64Max) {
         return false;
@@ -539,4 +547,8 @@ namespace HeapFile {
       return remainingSize >= sizeof(PageEntry);
     }
   };
+
+  void insertTuple(ResourceManager& rm, const std::string& filename, Tuple& tuple);
+  void insertTuples(std::shared_ptr<ResourceManager>& rm, const std::string& filename, std::vector<Tuple>& tuples);
+  void insertTuples(HeapFile::HeapFileIterator& iter, std::vector<Tuple>& tuples);
 };

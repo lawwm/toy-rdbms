@@ -6,7 +6,7 @@
 
 
 TEST_CASE("Insert tuple") {
-  const std::string fileName = "employee";
+  std::string fileName = "employee";
   DeferDeleteFile deferDeleteFile(fileName);
   {
     std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(PAGE_SIZE_M, 10);

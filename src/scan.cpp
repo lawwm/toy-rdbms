@@ -171,3 +171,138 @@ Schema& ProjectScan::getSchema()
 {
   return this->schema;
 }
+
+// UpdateableTableScan
+
+bool ModifyTableScan::getFirst()
+{
+  return this->iter.findFirstDir();
+}
+
+bool ModifyTableScan::next()
+{
+  bool hasPageBuffer = this->iter.getPageBuffer() != nullptr;
+  bool nextSlotIsInSamePageBuffer = false;
+  u32 nextSlot = this->currentSlot + 1;
+  if (hasPageBuffer) {
+    TuplePage* pe = reinterpret_cast<TuplePage*>(this->iter.getPageBuffer());
+    nextSlotIsInSamePageBuffer = nextSlot < pe->numberOfSlots;
+  }
+
+
+  if (hasPageBuffer && nextSlotIsInSamePageBuffer) {
+    // go to next slot
+    this->currentSlot = nextSlot;
+    return true;
+  }
+  else {
+    // go to the next page
+    bool hasNextPage = this->iter.nextPageInDir();
+    this->currentSlot = -1;
+    if (hasNextPage) {
+      return this->next();
+    }
+    else {
+      // go to the next dir
+      bool hasNextDir = this->iter.nextDir();
+      if (hasNextDir) {
+        return this->next();
+      }
+      else {
+        return false;
+      }
+    }
+  }
+}
+
+Tuple ModifyTableScan::get()
+{
+  auto buffer = this->iter.getPageBuffer();
+  Slot* slot = reinterpret_cast<Slot*>(buffer->bufferData.data() + sizeof(TuplePage));
+
+  std::vector<std::unique_ptr<WriteField>> output;
+  u32 offset = slot[currentSlot].getOffset();
+  for (int i = 0; i < schema.fieldList.size(); ++i) {
+    auto wf = schema.fieldMap[schema.fieldList[i]]->get(buffer->bufferData.data(), offset);
+    offset += wf->getLength();
+    output.push_back(std::move(wf));
+  }
+
+  Tuple tuple(std::move(output));
+  return tuple;
+}
+// so fucking cooked.
+Schema& ModifyTableScan::getSchema()
+{
+  return this->schema;
+}
+
+bool DeleteTableScan::deleteTuple() // delete tuple at current position
+{
+  auto buffer = this->iter.getPageBuffer();
+  if (!buffer) {
+    return false;
+  }
+  TuplePage* pe = reinterpret_cast<TuplePage*>(this->iter.getPageBuffer());
+  Slot* slot = reinterpret_cast<Slot*>(buffer->bufferData.data() + sizeof(TuplePage));
+  if (currentSlot >= pe->numberOfSlots) {
+    return false;
+  }
+  if (!slot[currentSlot].isOccupied()) {
+    return false;
+  }
+
+  slot[currentSlot].setOccupied(false);
+  // reduce the size of the page entry. this->iter.getPageDirBuffer();
+  return true;
+}
+
+/*
+lvalue = rvalue/lvalue
+*/
+void UpdateTableScan::update(UpdateStmt& updateData)
+{
+  Schema& schema = this->getSchema();
+  auto oldTuple = this->get();
+  u32 oldRecordSize = oldTuple.recordSize;
+
+  std::vector<Field> schemaFields;
+  for (int i = 0; i < schema.fieldList.size(); ++i) {
+    schemaFields.push_back(Field(schema.tableList[i], schema.fieldList[i]));
+  }
+
+  for (auto& [k, v] : updateData.setFields) {
+    Constant newValue = v->getConstant(oldTuple, schema);
+
+    // convert the constant into writeField
+    for (u32 i = 0; i < schemaFields.size(); ++i) {
+      if (schemaFields[i] == k.get()) {
+        // HACK: this is a hack, we should not be using so much indirection but i'm fucking lazy.
+
+        oldTuple.set(i, schema.fieldMap.at(schema.fieldList[i])->get(newValue));
+      }
+    }
+  }
+
+  Slot* slot = reinterpret_cast<Slot*>(this->iter.getPageBuffer()->bufferData.data() + sizeof(TuplePage));
+  u32 currSlotIdx = this->currentSlot;
+  if (oldRecordSize < oldTuple.recordSize) {
+    // if no more space left set to empty, write to next spot
+    slot[currSlotIdx].setOccupied(false);
+
+    // Insert again
+    std::vector<Tuple> insertTuples;
+    insertTuples.emplace_back(std::move(oldTuple));
+    HeapFile::insertTuples(this->pushIter, insertTuples);
+
+  }
+  else {
+    // if has space, update the current spot.
+    u32 offset = slot[currSlotIdx].getOffset();
+    for (auto& field : oldTuple.fields) {
+      field->write(this->iter.getPageBuffer()->bufferData.data(), offset);
+      offset += field->getLength();
+    }
+  }
+
+}

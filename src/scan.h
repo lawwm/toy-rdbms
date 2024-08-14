@@ -12,13 +12,6 @@ public:
   virtual Schema& getSchema() = 0;
 };
 
-class UpdateScan {
-public:
-  virtual ~UpdateScan() {};
-  virtual void insert(Tuple& tuple) = 0;
-  virtual void update(Tuple& tuple) = 0;
-  virtual void deleteTuple() = 0;
-};
 
 class TableScan : public Scan {
 private:
@@ -47,6 +40,52 @@ public:
   Schema& getSchema() override;
 };
 
+class ModifyTableScan : public Scan {
+protected:
+  std::shared_ptr<ResourceManager> rm;
+  std::string filename;
+  Schema schema;
+  HeapFile::HeapFileIterator iter;
+  i32 currentSlot;
+
+public:
+  ModifyTableScan(std::string filenameInput, std::shared_ptr<ResourceManager> rmInput, Schema schemaInput) :
+    rm{ rmInput }, filename{ filenameInput }, schema{ schemaInput }, iter{ HeapFile::HeapFileIterator(filename, rm) }, currentSlot{ -1 } {
+
+  }
+
+  ~ModifyTableScan() = default;
+
+  bool getFirst() override;
+
+  bool next() override;
+
+  Tuple get() override;
+
+  Schema& getSchema() override;
+};
+
+// update opens 4 buffers
+class UpdateTableScan : public ModifyTableScan {
+public:
+  HeapFile::HeapFileIterator pushIter;
+
+  UpdateTableScan(std::string filenameInput, std::shared_ptr<ResourceManager> rmInput, Schema schemaInput)
+    : ModifyTableScan(filenameInput, rmInput, schemaInput), pushIter{ filenameInput , rmInput }
+  {}
+
+  void update(UpdateStmt& tuple);
+};
+
+// delete opens 2 buffer
+class DeleteTableScan : public ModifyTableScan {
+
+public:
+  DeleteTableScan(std::string filenameInput, std::shared_ptr<ResourceManager> rmInput, Schema schemaInput)
+    : ModifyTableScan(filenameInput, rmInput, schemaInput) {}
+
+  bool deleteTuple();
+};
 
 class SelectScan : public Scan {
 private:

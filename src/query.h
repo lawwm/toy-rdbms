@@ -118,31 +118,34 @@ public:
   virtual std::unique_ptr<ReadField> clone() = 0;
   virtual std::unique_ptr<WriteField> get(const char* buffer, u32 offset) = 0;
   virtual std::unique_ptr<WriteField> get(Token token) = 0;
+  virtual std::unique_ptr<WriteField> get(Constant token) = 0;
   virtual std::string serializeType() = 0;
 };
 
 
-// first 4 bytes is string length, then the string
+// first 2 bytes is string length, then physical length then the string
 class VarCharField : public WriteField {
+  u16 physicalSize;
   std::string value;
 public:
   virtual ~VarCharField() override = default;
-  VarCharField(std::string value) : value{ value } {}
+  VarCharField(std::string value) : value{ value }, physicalSize{ (u16)value.size() } {}
+  VarCharField(std::string value, u16 physicalSize) : value{ value }, physicalSize{ physicalSize } {}
 
   virtual u32 getLength() override {
-    return value.size() + sizeof(u32);
+    return physicalSize + sizeof(u32);
   }
+
   virtual void write(char* buffer, u32 offset) override {
-    u32 length = value.size();
-    std::memcpy(buffer + offset, &length, sizeof(u32));
-    std::memcpy(buffer + offset + sizeof(u32), value.c_str(), value.size());
+    u16 length = (u16)value.size();
+    std::memcpy(buffer + offset, &length, sizeof(u16));
+    std::memcpy(buffer + offset + sizeof(u16), &physicalSize, sizeof(u16));
+    std::memcpy(buffer + offset + sizeof(u16) + sizeof(u16), value.c_str(), length);
   }
 
   virtual Constant getConstant() override {
     return Constant(value);
   }
-
-
 };
 
 class ReadVarCharField : public ReadField {
@@ -155,13 +158,16 @@ public:
   }
 
   virtual std::unique_ptr<WriteField> get(const char* buffer, u32 offset) override {
-    u32 length;
-    std::memcpy(&length, buffer + offset, sizeof(u32));
-    std::string value(buffer + offset + sizeof(u32), length);
+    u16 length, physicalSize;
+    std::memcpy(&length, buffer + offset, sizeof(u16));
+    std::memcpy(&physicalSize, buffer + offset + sizeof(u16), sizeof(u16));
+    std::string value(buffer + offset + sizeof(u16) + sizeof(u16), length);
     return std::make_unique<VarCharField>(value);
   }
 
   virtual std::unique_ptr<WriteField> get(Token token) override;
+
+  std::unique_ptr<WriteField> get(Constant constant) override;
 
   virtual std::string serializeType() override {
     return "VARCHAR";
@@ -207,6 +213,9 @@ public:
 
   virtual std::unique_ptr<WriteField> get(Token token) override;
 
+  std::unique_ptr<WriteField> get(Constant constant) override;
+
+
   virtual std::string serializeType() override {
     return "CHAR(" + std::to_string(length) + ")";
   }
@@ -247,6 +256,9 @@ public:
 
   virtual std::unique_ptr<WriteField> get(Token token) override;
 
+  std::unique_ptr<WriteField> get(Constant constant) override;
+
+
   virtual std::string serializeType() override {
     return "INT";
   }
@@ -260,6 +272,18 @@ struct Tuple {
     for (auto& field : this->fields) {
       recordSize += field->getLength();
     }
+  }
+
+  u32 set(u32 idx, std::unique_ptr<WriteField> field) {
+    if (idx >= fields.size()) {
+      return 0;
+    }
+    fields[idx] = std::move(field);
+    recordSize = 0;
+    for (auto& field : this->fields) {
+      recordSize += field->getLength();
+    }
+    return recordSize;
   }
 };
 
@@ -381,6 +405,12 @@ struct Insert {
   std::vector<std::vector<Token>> values;
 };
 
+
+struct UpdateStmt {
+  std::string table;
+  std::vector<std::unique_ptr<Predicate>> predicate;
+  std::unordered_map<std::unique_ptr<Field>, std::unique_ptr<TableValue>> setFields;
+};
 
 const std::string TABLE_NAME = "table_name";
 const std::string FIELD_NAME = "field_name";

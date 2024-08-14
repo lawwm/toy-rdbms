@@ -246,14 +246,11 @@ PageId HeapFile::appendNewHeapPage(ResourceManager& rm, std::string filename) {
   return tuplePageId;
 }
 
-
-void HeapFile::insertTuples(std::shared_ptr<ResourceManager> rm, std::string filename, std::vector<Tuple>& tuples) {
+void HeapFile::insertTuples(HeapFile::HeapFileIterator& iter, std::vector<Tuple>& tuples) {
   std::sort(begin(tuples), end(tuples), [](auto& lhs, auto& rhs) {
     return lhs.recordSize < rhs.recordSize;
     });
 
-  HeapFile::HeapFileIterator iter(filename, rm);
-  iter.findFirstDir();
   for (auto& tuple : tuples) {
     iter.traverseFromStartTilFindSpace(tuple.recordSize);
     BufferFrame* tupleFrame = iter.getPageBuffer();
@@ -291,9 +288,15 @@ void HeapFile::insertTuples(std::shared_ptr<ResourceManager> rm, std::string fil
   }
 }
 
+void HeapFile::insertTuples(std::shared_ptr<ResourceManager>& rm, const std::string& filename, std::vector<Tuple>& tuples) {
+  HeapFile::HeapFileIterator iter(filename, rm);
+  iter.findFirstDir();
+  insertTuples(iter, tuples);
+}
 
 
-void HeapFile::insertTuple(ResourceManager& rm, std::string filename, Tuple& tuple) {
+
+void HeapFile::insertTuple(ResourceManager& rm, const std::string& filename, Tuple& tuple) {
   auto& fm = rm.fm;
   auto& bm = rm.bm;
 
