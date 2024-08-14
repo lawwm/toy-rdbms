@@ -4,7 +4,7 @@
 #include "./test_utils.h"
 
 TEST_CASE("Normal insert") {
-  DeferDeleteFile deferDeleteFile("citizen");
+  DeferDeleteFile deferDeleteFile({ "citizen", "schema" });
   {
     std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(PAGE_SIZE_M, 10);
 
@@ -76,7 +76,7 @@ TEST_CASE("Normal insert") {
 
 
 TEST_CASE("Create two tables, populate them and query a join") {
-  DeferDeleteFile deferDeleteFile({ "employees", "departments" });
+  DeferDeleteFile deferDeleteFile({ "employees", "departments", "schema" });
   {
     std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(PAGE_SIZE_M, 10);
 

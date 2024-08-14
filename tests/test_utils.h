@@ -9,10 +9,10 @@ struct DeferDeleteFile {
   ~DeferDeleteFile() {
     for (auto& fileName : fileNames) {
       if (std::filesystem::remove(fileName) != 0) {
-        std::cerr << "Error deleting file" << std::endl;
+        std::cerr << "Error deleting file " << fileName << std::endl;
       }
       else {
-        std::cout << "File successfully deleted" << std::endl;
+        std::cout << "File successfully deleted " << fileName << std::endl;
       }
     }
   }

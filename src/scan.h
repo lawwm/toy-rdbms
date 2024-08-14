@@ -12,6 +12,14 @@ public:
   virtual Schema& getSchema() = 0;
 };
 
+class UpdateScan {
+public:
+  virtual ~UpdateScan() {};
+  virtual void insert(Tuple& tuple) = 0;
+  virtual void update(Tuple& tuple) = 0;
+  virtual void deleteTuple() = 0;
+};
+
 class TableScan : public Scan {
 private:
   PageId currentPageId;
