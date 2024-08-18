@@ -315,7 +315,7 @@ namespace HeapFile {
     BufferFrame* pageDirBuffer;
 
     // page buffer
-    PageId pageId;
+    PageId pageBufferId;
     BufferFrame* pageBuffer;
     u32 pageEntryIndex;
 
@@ -332,7 +332,7 @@ namespace HeapFile {
     ~HeapFileIterator() {
       resourceManager->bm.unpin(resourceManager->fm, pageDirectoryId);
       if (pageBuffer) {
-        resourceManager->bm.unpin(resourceManager->fm, pageId);
+        resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
       }
     }
 
@@ -396,8 +396,8 @@ namespace HeapFile {
           return false;
         }
         else {
-          pageId = PageId{ filename, pageEntryList[0].pageNumber };
-          pageBuffer = resourceManager->bm.pin(resourceManager->fm, pageId);
+          this->pageBufferId = PageId{ filename, pageEntryList[0].pageNumber };
+          pageBuffer = resourceManager->bm.pin(resourceManager->fm, this->pageBufferId);
           pageEntryIndex = 0;
           return true;
         }
@@ -409,8 +409,8 @@ namespace HeapFile {
           return false;
         }
         else {
-          pageId = PageId{ filename, pageEntryList[pageEntryIndex + 1].pageNumber };
-          pageBuffer = resourceManager->bm.pin(resourceManager->fm, pageId);
+          this->pageBufferId = PageId{ filename, pageEntryList[pageEntryIndex + 1].pageNumber };
+          pageBuffer = resourceManager->bm.pin(resourceManager->fm, this->pageBufferId);
           pageEntryIndex++;
           return true;
         }
@@ -452,9 +452,9 @@ namespace HeapFile {
             }
 
             // set up the page buffer to point to the chosen page
-            pageId = PageId{ filename, pageEntryList[i].pageNumber };
+            this->pageBufferId = PageId{ filename, pageEntryList[i].pageNumber };
             this->pageEntryIndex = i;
-            pageBuffer = resourceManager->bm.pin(resourceManager->fm, pageId);
+            pageBuffer = resourceManager->bm.pin(resourceManager->fm, this->pageBufferId);
             pageNumberChosen = pageEntryList[i].pageNumber;
 
             break;
@@ -488,8 +488,8 @@ namespace HeapFile {
           }
 
           // add the tuple header to the tuple page.
-          pageId = PageId{ filename, lastPageNumber };
-          pageBuffer = resourceManager->bm.pin(resourceManager->fm, pageId);
+          this->pageBufferId = PageId{ filename, lastPageNumber };
+          pageBuffer = resourceManager->bm.pin(resourceManager->fm, this->pageBufferId);
           pageBuffer->modify(&tp, sizeof(TuplePage), 0);
           pageEntryIndex = pd->numberOfEntries - 1;
         }
@@ -535,8 +535,8 @@ namespace HeapFile {
           }
 
           // pin the page buffer
-          pageId = PageId{ filename, pe[0].pageNumber };
-          pageBuffer = resourceManager->bm.pin(resourceManager->fm, pageId);
+          this->pageBufferId = PageId{ filename, pe[0].pageNumber };
+          pageBuffer = resourceManager->bm.pin(resourceManager->fm, this->pageBufferId);
           pageEntryIndex = 0;
         }
 

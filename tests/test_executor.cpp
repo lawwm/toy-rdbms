@@ -19,46 +19,54 @@ TEST_CASE("Normal insert") {
     auto insert = R"(
     INSERT INTO citizen 
     VALUES 
-     ("David", "Doctor", 27),
+      ("David", "Doctor", 27),
       ("Brian", "Engineer", 34),
       ("Catherine", "Teacher", 29),
       ("David", "Artist", 41),
       ("Emma", "Nurse", 31),
+
       ("Sophia", "Scientist", 28),
       ("James", "Lawyer", 39),
       ("Olivia", "Chef", 25),
       ("Liam", "Architect", 33),
       ("Mason", "Photographer", 30),
+
       ("Isabella", "Designer", 26),
       ("Lucas", "Pilot", 38),
       ("Mia", "Journalist", 24),
       ("Ethan", "Pharmacist", 37),
       ("Ava", "Dentist", 32),
+
       ("Madison", "Journalist", 29),
       ("Gabriel", "Photographer", 34),
       ("Sofia", "Technician", 30),
       ("Samuel", "Musician", 31),
       ("Layla", "Librarian", 39),
+
       ("Carter", "Civil Servant", 28),
       ("Aria", "Pharmacist", 32),
       ("Jayden", "Chef", 40),
       ("Riley", "Dentist", 37),
       ("John", "Engineer", 33),
+
       ("Lily", "Scientist", 25),
       ("Owen", "Lawyer", 36),
       ("Eleanor", "Photographer", 27),
       ("Julian", "Architect", 34),
       ("Lincoln", "Technician", 31),
+
       ("Mila", "Designer", 28),
       ("Thomas", "Chef", 39),
       ("Ariana", "Librarian", 26),
       ("Hudson", "Photographer", 33),
       ("Claire", "Software Developer", 27),
+
       ("Adam", "Pharmacist", 35),
       ("Skylar", "Mechanic", 24),
       ("Kennedy", "Librarian", 29),
       ("Miles", "Carpenter", 41),
       ("Samantha", "Teacher", 28),
+
       ("Zachary", "Dentist", 31),
       ("Vera", "Civil Servant", 32)
       ;
@@ -68,7 +76,53 @@ TEST_CASE("Normal insert") {
     executor.execute(createTable);
     executor.execute(insert);
 
-    REQUIRE(1 == 1);
+    auto [resultTuple, msg] = executor.execute("SELECT * FROM citizen;");
+
+    REQUIRE(resultTuple.size() == 42);
+  }
+
+}
+
+TEST_CASE("Normal insert and then delete") {
+  DeferDeleteFile deferDeleteFile({ "citizen", "schema" });
+  {
+    std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
+
+    auto createTable = R"(
+    CREATE TABLE citizen(
+                  name VARCHAR(30),
+                  employment CHAR(20),                    
+                  age INT
+                );
+  )";
+
+    auto insert = R"(
+    INSERT INTO citizen 
+    VALUES 
+     ("David", "Doctor", 27),
+      ("Brian", "Engineer", 34),
+      ("David", "Artist", 41),
+      ("Emma", "Nurse", 31),
+      ("Miles", "Carpenter", 41)
+      ;
+      )";
+
+    auto deleteStmt = R"(
+      DELETE FROM citizen WHERE citizen.age > 40;
+    )";
+
+
+    // number of citizens at the start should be equal to 5
+    Executor executor(rm);
+    executor.execute(createTable);
+    executor.execute(insert);
+    auto [beforeResultTuple, beforeMsg] = executor.execute("SELECT * FROM citizen;");
+    REQUIRE(beforeResultTuple.size() == 5);
+
+    // number of citizens after delete should be equal to 3
+    executor.execute(deleteStmt);
+    auto [afterResultTuple, msg] = executor.execute("SELECT * FROM citizen;");
+    REQUIRE(afterResultTuple.size() == 3);
   }
 
 }

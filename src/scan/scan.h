@@ -18,17 +18,3 @@ public:
   virtual void update(UpdateStmt& tuple) = 0;
   virtual bool deleteTuple() = 0;
 };
-
-class SelectScanTemplate : public Scan {
-protected:
-  inline bool next(std::unique_ptr<Scan>& scan, std::unique_ptr<Predicate>& predicate) {
-    while (scan->next()) {
-      auto tuple = scan->get();
-      if (predicate->evaluate(tuple, scan->getSchema())) {
-        return true;
-      }
-    }
-    return false;
-  };
-};
-

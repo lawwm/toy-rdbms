@@ -54,19 +54,26 @@ bool TableScan::next() {
       }
     }
     u32 numberOfSlots = pe->numberOfSlots;
+
+    Slot* slot = reinterpret_cast<Slot*>(currBuffer->bufferData.data() + sizeof(TuplePage));
     i32 nextSlot = currentSlot + 1;
+    while (nextSlot < numberOfSlots && !slot[nextSlot].isOccupied()) {
+      nextSlot += 1;
+    }
+
     if (nextSlot < numberOfSlots) {
       currentSlot = nextSlot;
       return true;
     }
-    else { // no more slots left
+    else {
       bool foundNextPage = findNextPage();
       if (!foundNextPage) {
         return false;
       }
-
     }
+
   }
+
 }
 
 Tuple TableScan::get() {
@@ -104,7 +111,12 @@ bool ModifyTableScan::next()
   bool nextSlotIsInSamePageBuffer = false;
   u32 nextSlot = this->currentSlot + 1;
   if (hasPageBuffer) {
-    TuplePage* pe = reinterpret_cast<TuplePage*>(this->iter.getPageBuffer());
+    TuplePage* pe = reinterpret_cast<TuplePage*>(this->iter.getPageBuffer()->bufferData.data());
+    Slot* slot = reinterpret_cast<Slot*>(this->iter.getPageBuffer()->bufferData.data() + sizeof(TuplePage));
+    while (nextSlot < pe->numberOfSlots && !slot[nextSlot].isOccupied()) {
+      nextSlot += 1;
+    }
+    this->currentSlot = nextSlot;
     nextSlotIsInSamePageBuffer = nextSlot < pe->numberOfSlots;
   }
 
@@ -171,7 +183,8 @@ bool ModifyTableScan::deleteTuple() // delete tuple at current position
   directoryFrame->dirty = true;
 
   // modify the page 
-  TuplePage* pe = reinterpret_cast<TuplePage*>(this->iter.getPageBuffer());
+  auto pageBuffer = this->iter.getPageBuffer();
+  TuplePage* pe = reinterpret_cast<TuplePage*>(pageBuffer->bufferData.data());
   Slot* slot = reinterpret_cast<Slot*>(buffer->bufferData.data() + sizeof(TuplePage));
   if (currentSlot >= pe->numberOfSlots) {
     return false;
@@ -182,11 +195,12 @@ bool ModifyTableScan::deleteTuple() // delete tuple at current position
 
   slot[currentSlot].setOccupied(false);
   // reduce the size of the page entry. this->iter.getPageDirBuffer();
+  pageBuffer->dirty = true;
   return true;
 }
 
 /*
-lvalue = rvalue/lvalue
+  lvalue = rvalue/lvalue
 */
 void ModifyTableScan::update(UpdateStmt& updateData)
 {

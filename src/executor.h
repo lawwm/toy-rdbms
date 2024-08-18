@@ -34,19 +34,22 @@ public:
     }
 
     // selection
-    std::unique_ptr<Predicate> pred;
     if (queryStmt.predicate.size() > 0) {
+      std::unique_ptr<Predicate> pred;
       pred = std::move(queryStmt.predicate.at(0));
       for (u32 i = 1; i < queryStmt.predicate.size(); ++i) {
         pred = std::make_unique<Predicate>(PredicateOperand::AND,
           std::move(pred),
           std::move(queryStmt.predicate.at(i)));
       }
+      lhs = std::make_unique<SelectScan>(std::move(lhs), std::move(pred));
     }
-    lhs = std::make_unique<SelectScan>(std::move(lhs), std::move(pred));
 
     // projection
-    lhs = std::make_unique<ProjectScan>(std::move(lhs), queryStmt.selectFields);
+    if (queryStmt.selectFields.size() > 0) {
+      lhs = std::make_unique<ProjectScan>(std::move(lhs), queryStmt.selectFields);
+    }
+
 
     return lhs;
   }
@@ -58,8 +61,9 @@ public:
       // QUERY
       auto& queryStmt = std::get<Query>(stmt);
       auto scan = createBasicScan(queryStmt);
-      scan->getFirst();
+
       std::vector<Tuple> tuples;
+      scan->getFirst();
       while (scan->next()) {
         auto tuple = scan->get();
         tuples.push_back(std::move(tuple));
@@ -68,7 +72,7 @@ public:
     }
     else if (std::holds_alternative<Insert>(stmt)) {
       // INSERT
-      auto insertStmt = std::get<Insert>(stmt);
+      auto& insertStmt = std::get<Insert>(stmt);
       auto schemaMap = getSchemaFromTableName({ insertStmt.table }, resourceManager);
       auto schema = schemaMap.at(insertStmt.table);
       std::vector<Tuple> tuples;
@@ -80,37 +84,59 @@ public:
       return { std::move(tuples), "" };
     }
     else if (std::holds_alternative<UpdateStmt>(stmt)) {
-      //// UPDATE
-      //auto updateStmt = std::get<UpdateStmt>(stmt);
-      //auto schemaMap = getSchemaFromTableName({ updateStmt.table }, resourceManager);
-      //auto schema = schemaMap.at(updateStmt.table);
-      //auto scan = createBasicScan(updateStmt.query);
-      //scan->getFirst();
-      //std::vector<Tuple> tuples;
-      //while (scan->next()) {
-      //  auto tuple = scan->get();
-      //  auto newTuple = schema.updateTuple(tuple, updateStmt.setFields);
-      //  tuples.push_back(std::move(newTuple));
-      //}
-      //HeapFile::updateTuples(resourceManager, updateStmt.table, tuples);
+      // UPDATE
+      auto& updateStmt = std::get<UpdateStmt>(stmt);
+      auto schemaMap = getSchemaFromTableName({ updateStmt.table }, resourceManager);
+      auto schema = schemaMap.at(updateStmt.table);
 
-      //return { std::move(tuples), "" };
+      std::unique_ptr<ModifyScan> scan = std::make_unique<ModifyTableScan>(updateStmt.table, resourceManager, schema);
+
+
+      if (updateStmt.predicate.size() > 0) {
+        std::unique_ptr<Predicate> pred = std::move(updateStmt.predicate.at(0));
+        for (u32 i = 1; i < updateStmt.predicate.size(); ++i) {
+          pred = std::make_unique<Predicate>(PredicateOperand::AND,
+            std::move(pred),
+            std::move(updateStmt.predicate.at(i)));
+        }
+
+        scan = std::make_unique<SelectModifyScan>(std::move(scan), std::move(pred));
+      }
+
+
+      scan->getFirst();
+      while (scan->next()) {
+        scan->update(updateStmt);
+      }
+
+      return { std::vector<Tuple>{}, "" };
     }
     else if (std::holds_alternative<DeleteStmt>(stmt)) {
-      //// DELETE
-      //auto deleteStmt = std::get<DeleteStmt>(stmt);
-      //auto schemaMap = getSchemaFromTableName({ deleteStmt.table }, resourceManager);
-      //auto schema = schemaMap.at(deleteStmt.table);
-      //auto scan = createBasicScan(deleteStmt.query);
-      //scan->getFirst();
-      //std::vector<Tuple> tuples;
-      //while (scan->next()) {
-      //  auto tuple = scan->get();
-      //  tuples.push_back(std::move(tuple));
-      //}
-      //HeapFile::deleteTuples(resourceManager, deleteStmt.table, tuples);
+      // DELETE
+      auto& deleteStmt = std::get<DeleteStmt>(stmt);
+      auto schemaMap = getSchemaFromTableName({ deleteStmt.table }, resourceManager);
+      auto& schema = schemaMap.at(deleteStmt.table);
 
-      //return { std::move(tuples), "" };
+      std::unique_ptr<ModifyScan> scan = std::make_unique<ModifyTableScan>(deleteStmt.table, resourceManager, schema);
+
+      if (deleteStmt.predicate.size() > 0) {
+        std::unique_ptr<Predicate> pred = std::move(deleteStmt.predicate.at(0));
+        for (u32 i = 1; i < deleteStmt.predicate.size(); ++i) {
+          pred = std::make_unique<Predicate>(PredicateOperand::AND,
+            std::move(pred),
+            std::move(deleteStmt.predicate.at(i)));
+        }
+
+        scan = std::make_unique<SelectModifyScan>(std::move(scan), std::move(pred));
+      }
+
+      scan->getFirst();
+      while (scan->next()) {
+        auto tuple = scan->get();
+        scan->deleteTuple();
+      }
+
+      return { std::vector<Tuple>{}, "" };
     }
     else if (std::holds_alternative<Schema>(stmt)) {
       // CREATE

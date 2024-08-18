@@ -219,12 +219,20 @@ Query Parser::parseQuery()
   if (!lexer.matchToken(SELECT)) {
     this->addError("Expected SELECT keyword");
   }
+  lexer.nextToken(); // remove select
 
-  do {
-    lexer.nextToken();
-    auto selectField = this->parseValue();
-    query.addField(std::move(selectField));
-  } while (lexer.matchToken(COMMA));
+  if (lexer.matchToken(STAR)) {
+    lexer.nextToken(); // remove wildcard
+  }
+  else {
+    do {
+      if (lexer.matchToken(COMMA)) {
+        lexer.nextToken();
+      };
+      auto selectField = this->parseValue();
+      query.addField(std::move(selectField));
+    } while (lexer.matchToken(COMMA));
+  }
 
   if (!lexer.matchToken(FROM)) {
     this->addError("Expected FROM keyword");

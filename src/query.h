@@ -130,8 +130,8 @@ class VarCharField : public WriteField {
   std::string value;
 public:
   virtual ~VarCharField() override = default;
-  VarCharField(std::string value) : value{ value }, physicalSize{ (u16)value.size() } {}
-  VarCharField(std::string value, u16 physicalSize) : value{ value }, physicalSize{ physicalSize } {}
+  VarCharField(std::string value) :physicalSize{ (u16)value.size() }, value{ value } {}
+  VarCharField(std::string value, u16 physicalSize) : physicalSize{ physicalSize }, value{ value } {}
 
   virtual u32 getLength() override {
     return physicalSize + sizeof(u32);
