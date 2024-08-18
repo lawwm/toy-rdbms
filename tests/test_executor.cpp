@@ -127,6 +127,62 @@ TEST_CASE("Normal insert and then delete") {
 
 }
 
+TEST_CASE("Normal insert and then update") {
+  DeferDeleteFile deferDeleteFile({ "citizen", "schema" });
+  {
+    std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
+
+    auto createTable = R"(
+    CREATE TABLE citizen(
+                  name VARCHAR(30),
+                  employment CHAR(20),                    
+                  age INT
+                );
+  )";
+
+    auto insert = R"(
+    INSERT INTO citizen 
+    VALUES 
+     ("David", "Doctor", 27),
+      ("Brian", "Engineer", 34),
+      ("David", "Artist", 41),
+      ("Emma", "Nurse", 31),
+      ("Miles", "Carpenter", 41)
+      ;
+      )";
+
+    auto updateStmt = R"(
+      UPDATE citizen SET employment = "Programmer" WHERE citizen.age > 40;
+    )";
+    auto updateStmt2 = R"(
+      UPDATE citizen SET employment = "Unemployed" WHERE citizen.age <= 40;
+    )";
+
+    // number of citizens at the start should be equal to 5
+    Executor executor(rm);
+    executor.execute(createTable);
+    executor.execute(insert);
+    auto [beforeResultTuple, beforeMsg] = executor.execute("SELECT * FROM citizen;");
+    REQUIRE(beforeResultTuple.size() == 5);
+
+    // number of citizens after update should be equal to 5
+    executor.execute(updateStmt);
+    executor.execute(updateStmt2);
+    auto [afterResultTuple, msg] = executor.execute("SELECT * FROM citizen;");
+
+    REQUIRE(afterResultTuple.size() == 5);
+    for (auto& tuple : afterResultTuple) {
+      if (tuple.fields[2]->getConstant().num > 40) {
+        REQUIRE(tuple.fields[1]->getConstant().str == "Programmer");
+      }
+      else {
+        REQUIRE(tuple.fields[1]->getConstant().str == "Unemployed");
+      }
+    }
+  }
+}
+
+
 
 
 TEST_CASE("Create two tables, populate them and query a join") {

@@ -208,17 +208,19 @@ void ModifyTableScan::update(UpdateStmt& updateData)
   auto oldTuple = this->get();
   u32 oldRecordSize = oldTuple.recordSize;
 
-  std::vector<Field> schemaFields;
+  std::vector<Field> tableFieldList;
+  std::vector<Field> fieldList;
   for (int i = 0; i < schema.fieldList.size(); ++i) {
-    schemaFields.push_back(Field(schema.tableList[i], schema.fieldList[i]));
+    tableFieldList.push_back(Field(schema.tableList[i], schema.fieldList[i]));
+    fieldList.push_back(Field(schema.fieldList[i]));
   }
 
   for (auto& [k, v] : updateData.setFields) {
     Constant newValue = v->getConstant(oldTuple, schema);
 
     // convert the constant into writeField
-    for (u32 i = 0; i < schemaFields.size(); ++i) {
-      if (schemaFields[i] == k.get()) {
+    for (u32 i = 0; i < fieldList.size(); ++i) {
+      if (fieldList[i] == k.get() || tableFieldList[i] == k.get()) {
         // HACK: this is a hack, we should not be using so much indirection but i'm fucking lazy.
 
         oldTuple.set(i, schema.fieldMap.at(schema.fieldList[i])->get(newValue));
@@ -226,11 +228,13 @@ void ModifyTableScan::update(UpdateStmt& updateData)
     }
   }
 
-  Slot* slot = reinterpret_cast<Slot*>(this->iter.getPageBuffer()->bufferData.data() + sizeof(TuplePage));
+  auto pageBuffer = this->iter.getPageBuffer();
+  Slot* slot = reinterpret_cast<Slot*>(pageBuffer->bufferData.data() + sizeof(TuplePage));
   u32 currSlotIdx = this->currentSlot;
   if (oldRecordSize < oldTuple.recordSize) {
     // if no more space left set to empty, write to next spot
     slot[currSlotIdx].setOccupied(false);
+    pageBuffer->dirty = true;
 
     // decrease page entry free space in current directory.
     BufferFrame* directoryFrame = iter.getPageDirBuffer();
@@ -251,6 +255,7 @@ void ModifyTableScan::update(UpdateStmt& updateData)
       field->write(this->iter.getPageBuffer()->bufferData.data(), offset);
       offset += field->getLength();
     }
+    pageBuffer->dirty = true;
   }
 
 }
