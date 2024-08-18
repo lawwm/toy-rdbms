@@ -2,7 +2,9 @@
 #include "parser.h"
 #include "query.h"
 #include "buffer.h"
-#include "scan.h"
+#include "scan/scan.h"
+#include "../src/scan/SelectScan.h"
+#include "../src/scan/TableScan.h"
 
 bool Field::operator==(const TableValue* other) const {
   if (auto otherConstant = dynamic_cast<const Field*>(other)) {

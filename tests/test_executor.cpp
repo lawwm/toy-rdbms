@@ -6,7 +6,7 @@
 TEST_CASE("Normal insert") {
   DeferDeleteFile deferDeleteFile({ "citizen", "schema" });
   {
-    std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(PAGE_SIZE_M, 10);
+    std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
 
     auto createTable = R"(
     CREATE TABLE citizen(
@@ -78,7 +78,7 @@ TEST_CASE("Normal insert") {
 TEST_CASE("Create two tables, populate them and query a join") {
   DeferDeleteFile deferDeleteFile({ "employees", "departments", "schema" });
   {
-    std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(PAGE_SIZE_M, 10);
+    std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
 
     auto createTable1 = R"(
     CREATE TABLE employees (
@@ -170,16 +170,5 @@ TEST_CASE("Create two tables, populate them and query a join") {
       }
     }
   }
-  //try {
-  //  Executor executor(rm);
-  //  for (auto& cmd : { createTable1, createTable2, insertTable1, insertTable2 }) {
-  //    executor.execute(cmd);
-  //  }
-
-  //  executor.execute(query);
-  //}
-  //catch (...) {
-  //  int a = 0;
-  //}
 
 }

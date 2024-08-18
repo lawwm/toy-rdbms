@@ -6,7 +6,11 @@
 #include "parser.h"
 #include "query.h"
 #include "buffer.h"
-#include "scan.h"
+#include "./scan/scan.h"
+#include "./scan/TableScan.h"
+#include "./scan/ProductScan.h"
+#include "./scan/SelectScan.h"
+#include "./scan/ProjectScan.h"
 
 class Executor {
 public:
@@ -49,7 +53,7 @@ public:
 
   std::tuple<std::vector<Tuple>, std::string> execute(std::string sqlStmt) {
     Parser parser(sqlStmt);
-    std::variant<Query, Insert, Schema> stmt = parser.parseStatement();
+    Parser::StatementVariant stmt = parser.parseStatement();
     if (std::holds_alternative<Query>(stmt)) {
       // QUERY
       auto& queryStmt = std::get<Query>(stmt);
@@ -74,6 +78,39 @@ public:
       HeapFile::insertTuples(resourceManager, insertStmt.table, tuples);
 
       return { std::move(tuples), "" };
+    }
+    else if (std::holds_alternative<UpdateStmt>(stmt)) {
+      //// UPDATE
+      //auto updateStmt = std::get<UpdateStmt>(stmt);
+      //auto schemaMap = getSchemaFromTableName({ updateStmt.table }, resourceManager);
+      //auto schema = schemaMap.at(updateStmt.table);
+      //auto scan = createBasicScan(updateStmt.query);
+      //scan->getFirst();
+      //std::vector<Tuple> tuples;
+      //while (scan->next()) {
+      //  auto tuple = scan->get();
+      //  auto newTuple = schema.updateTuple(tuple, updateStmt.setFields);
+      //  tuples.push_back(std::move(newTuple));
+      //}
+      //HeapFile::updateTuples(resourceManager, updateStmt.table, tuples);
+
+      //return { std::move(tuples), "" };
+    }
+    else if (std::holds_alternative<DeleteStmt>(stmt)) {
+      //// DELETE
+      //auto deleteStmt = std::get<DeleteStmt>(stmt);
+      //auto schemaMap = getSchemaFromTableName({ deleteStmt.table }, resourceManager);
+      //auto schema = schemaMap.at(deleteStmt.table);
+      //auto scan = createBasicScan(deleteStmt.query);
+      //scan->getFirst();
+      //std::vector<Tuple> tuples;
+      //while (scan->next()) {
+      //  auto tuple = scan->get();
+      //  tuples.push_back(std::move(tuple));
+      //}
+      //HeapFile::deleteTuples(resourceManager, deleteStmt.table, tuples);
+
+      //return { std::move(tuples), "" };
     }
     else if (std::holds_alternative<Schema>(stmt)) {
       // CREATE

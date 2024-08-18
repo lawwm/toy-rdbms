@@ -30,6 +30,7 @@ struct PageId {
 
 const static PageId emptyPageId = { "", u64Max };
 
+const static size_t TEST_PAGE_SIZE = 512;
 const static size_t PAGE_SIZE_S = 4096;
 const static size_t PAGE_SIZE_M = 8192;
 const static size_t PAGE_SIZE_L = 16384;
@@ -337,6 +338,10 @@ namespace HeapFile {
 
     BufferFrame* getPageDirBuffer() {
       return pageDirBuffer;
+    };
+
+    u32 getPageEntryIndex() {
+      return pageEntryIndex;
     };
 
     BufferFrame* getPageBuffer() {

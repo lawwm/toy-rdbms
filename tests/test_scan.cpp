@@ -1,15 +1,17 @@
 #include "catch.hpp"
 
-#include "../src/scan.h"
+#include "../src/scan/scan.h"
+#include "../src/scan/SelectScan.h"
+#include "../src/scan/TableScan.h"
 #include "./test_utils.h"
-
+#include "memory"
 
 
 TEST_CASE("Insert tuple") {
   std::string fileName = "employee";
   DeferDeleteFile deferDeleteFile(fileName);
   {
-    std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(PAGE_SIZE_M, 10);
+    std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
 
     HeapFile::createHeapFile(*rm, fileName);
 
@@ -80,6 +82,7 @@ TEST_CASE("Insert tuple") {
     }
 
     REQUIRE(selectedTuples.size() == 2);
+
   }
 }
 

@@ -191,7 +191,7 @@ void Parser::addError(std::string message)
   errors.push_back(ErrorMessage{ message, this->lexer.line });
 }
 
-std::variant<Query, Insert, Schema> Parser::parseStatement()
+Parser::StatementVariant Parser::parseStatement()
 {
   if (lexer.matchToken(SELECT)) {
     return this->parseQuery();
@@ -201,6 +201,12 @@ std::variant<Query, Insert, Schema> Parser::parseStatement()
   }
   else if (lexer.matchToken(INSERT)) {
     return this->parseInsert();
+  }
+  else if (lexer.matchToken(UPDATE)) {
+    return this->parseUpdate();
+  }
+  else if (lexer.matchToken(DELETE)) {
+    return this->parseDelete();
   }
   else {
     throw "no proper statements given here, to refactor in the future";
@@ -378,6 +384,91 @@ Schema Parser::parseCreate() {
   lexer.nextToken();
 
   return schema;
+}
+
+UpdateStmt Parser::parseUpdate()
+{
+  UpdateStmt updateStmt;
+  if (!lexer.matchToken(UPDATE)) {
+    this->addError("Expected UPDATE keyword");
+  }
+  lexer.nextToken();
+
+  if (!lexer.matchToken(IDENTIFIER)) {
+    this->addError("Expected table name");
+  }
+  updateStmt.table = lexer.nextToken().lexeme;
+
+  if (!lexer.matchToken(SET)) {
+    this->addError("Expected SET keyword");
+  }
+
+  do {
+    lexer.nextToken();
+
+    std::unique_ptr<Field> field;
+    if (!lexer.matchToken(IDENTIFIER)) {
+      this->addError("Expected field name");
+    }
+    auto tableName = lexer.nextToken();
+    if (lexer.matchToken(DOT)) {
+      lexer.nextToken();
+      auto fieldName = lexer.nextToken();
+      field = std::make_unique<Field>(tableName.lexeme, fieldName.lexeme);
+    }
+    else {
+      field = std::make_unique<Field>(tableName.lexeme);
+    }
+
+    if (!lexer.matchToken(EQUAL)) {
+      this->addError("Expected equal sign");
+    }
+    lexer.nextToken();
+
+    auto value = this->parseValue();
+
+    updateStmt.setFields.emplace(std::move(field), std::move(value));
+
+  } while (lexer.matchToken(COMMA));
+
+
+  if (lexer.matchToken(WHERE)) {
+    lexer.nextToken();
+    auto pred = this->parsePredicate();
+    updateStmt.predicate.push_back(std::move(pred));
+  }
+
+  return updateStmt;
+}
+
+DeleteStmt Parser::parseDelete()
+{
+  DeleteStmt deleteStmt;
+
+  if (!lexer.matchToken(DELETE)) {
+    this->addError("Expected DELETE keyword");
+  }
+  lexer.nextToken();
+
+  if (!lexer.matchToken(FROM)) {
+    this->addError("Expected FROM keyword");
+  }
+  lexer.nextToken();
+
+
+  if (!lexer.matchToken(IDENTIFIER)) {
+    this->addError("Expected table name");
+  }
+  deleteStmt.table = lexer.nextToken().lexeme;
+
+
+  if (lexer.matchToken(WHERE)) {
+    lexer.nextToken();
+    auto pred = this->parsePredicate();
+    deleteStmt.predicate.push_back(std::move(pred));
+  }
+
+  return deleteStmt;
 }
 
 void Parser::parseTable(Query& query)

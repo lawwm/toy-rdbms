@@ -253,6 +253,13 @@ void HeapFile::insertTuples(HeapFile::HeapFileIterator& iter, std::vector<Tuple>
 
   for (auto& tuple : tuples) {
     iter.traverseFromStartTilFindSpace(tuple.recordSize);
+    // Decrease page entry free space size
+    BufferFrame* directoryFrame = iter.getPageDirBuffer();
+    PageEntry* pageEntryList = reinterpret_cast<PageEntry*>(directoryFrame->bufferData.data() + sizeof(PageDirectory));
+    pageEntryList[iter.getPageEntryIndex()].freeSpace -= tuple.recordSize;
+    directoryFrame->dirty = true;
+
+    // Get the tuple page headers.
     BufferFrame* tupleFrame = iter.getPageBuffer();
     TuplePage* pe = reinterpret_cast<TuplePage*>(tupleFrame->bufferData.data());
     Slot* slot = reinterpret_cast<Slot*>(tupleFrame->bufferData.data() + sizeof(TuplePage));
@@ -270,6 +277,7 @@ void HeapFile::insertTuples(HeapFile::HeapFileIterator& iter, std::vector<Tuple>
     if (emptySlotIdx == u32Max) {
       emptySlotIdx = numberOfSlots;
       pe->numberOfSlots += 1;
+      pageEntryList[iter.getPageEntryIndex()].freeSpace -= sizeof(Slot);
     }
 
     // Set current slot to be occupied

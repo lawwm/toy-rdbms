@@ -95,6 +95,7 @@ class Field : public TableValue {
 public:
   virtual ~Field() override {}
   Field(std::string table, std::string fieldName) : fieldName{ fieldName }, table{ table } {}
+  Field(std::string fieldName) : fieldName{ fieldName }, table{ fieldName } {}
   bool operator==(const TableValue* other) const override;
   virtual Constant getConstant(Tuple& tuple, Schema& schema) override;
 private:
@@ -410,6 +411,11 @@ struct UpdateStmt {
   std::string table;
   std::vector<std::unique_ptr<Predicate>> predicate;
   std::unordered_map<std::unique_ptr<Field>, std::unique_ptr<TableValue>> setFields;
+};
+
+struct DeleteStmt {
+  std::string table;
+  std::vector<std::unique_ptr<Predicate>> predicate;
 };
 
 const std::string TABLE_NAME = "table_name";

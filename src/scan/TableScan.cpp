@@ -1,5 +1,11 @@
 
-#include "scan.h"
+#include "TableScan.h"
+
+/**
+
+Read Table Scan
+
+*/
 
 bool TableScan::findNextPage() {
   rm->bm.unpin(rm->fm, this->currentPageId);
@@ -83,96 +89,9 @@ Schema& TableScan::getSchema()
   return this->schema;
 }
 
-bool SelectScan::getFirst()
-{
-  return this->scan->getFirst();
-}
-
-bool SelectScan::next()
-{
-  while (this->scan->next()) {
-    auto tuple = this->scan->get();
-    if (this->predicate->evaluate(tuple, this->scan->getSchema())) {
-      return true;
-    }
-  }
-  return false;
-}
-
-Tuple SelectScan::get()
-{
-  return this->scan->get();
-}
-
-Schema& SelectScan::getSchema()
-{
-  return this->scan->getSchema();
-}
-
-bool ProductScan::getFirst()
-{
-  return leftScan->getFirst()
-    && leftScan->next()
-    && rightScan->getFirst();
-}
-
-bool ProductScan::next()
-{
-  if (rightScan->next()) {
-    return true;
-  }
-  else {
-    rightScan->getFirst();
-    return leftScan->next() && rightScan->next();
-  }
-}
-
-Tuple ProductScan::get()
-{
-  auto lhs = leftScan->get();
-  auto rhs = rightScan->get();
-  std::vector<std::unique_ptr<WriteField>> output;
-  for (auto& field : lhs.fields) {
-    output.push_back(std::move(field));
-  }
-  for (auto& field : rhs.fields) {
-    output.push_back(std::move(field));
-  }
-
-  return Tuple(std::move(output));
-}
-
-Schema& ProductScan::getSchema()
-{
-  return this->schema;
-}
-
-bool ProjectScan::getFirst()
-{
-  return this->scan->getFirst();
-}
-
-bool ProjectScan::next()
-{
-  return this->scan->next();
-}
-
-Tuple ProjectScan::get()
-{
-  auto innerTuple = scan->get();
-  std::vector<std::unique_ptr<WriteField>> output;
-  for (u32 index : mapToInnerSchema) {
-    output.push_back(std::move(innerTuple.fields[index]));
-  }
-  return Tuple(std::move(output));
-}
-
-Schema& ProjectScan::getSchema()
-{
-  return this->schema;
-}
-
-// UpdateableTableScan
+/*
+* ModifyTableScan Implementation
+*/
 
 bool ModifyTableScan::getFirst()
 {
@@ -231,18 +150,27 @@ Tuple ModifyTableScan::get()
   Tuple tuple(std::move(output));
   return tuple;
 }
+
 // so fucking cooked.
 Schema& ModifyTableScan::getSchema()
 {
   return this->schema;
 }
 
-bool DeleteTableScan::deleteTuple() // delete tuple at current position
+bool ModifyTableScan::deleteTuple() // delete tuple at current position
 {
   auto buffer = this->iter.getPageBuffer();
   if (!buffer) {
     return false;
   }
+
+  // Increase page entry free space size
+  BufferFrame* directoryFrame = iter.getPageDirBuffer();
+  PageEntry* pageEntryList = reinterpret_cast<PageEntry*>(directoryFrame->bufferData.data() + sizeof(PageDirectory));
+  pageEntryList[iter.getPageEntryIndex()].freeSpace += this->get().recordSize;
+  directoryFrame->dirty = true;
+
+  // modify the page 
   TuplePage* pe = reinterpret_cast<TuplePage*>(this->iter.getPageBuffer());
   Slot* slot = reinterpret_cast<Slot*>(buffer->bufferData.data() + sizeof(TuplePage));
   if (currentSlot >= pe->numberOfSlots) {
@@ -260,7 +188,7 @@ bool DeleteTableScan::deleteTuple() // delete tuple at current position
 /*
 lvalue = rvalue/lvalue
 */
-void UpdateTableScan::update(UpdateStmt& updateData)
+void ModifyTableScan::update(UpdateStmt& updateData)
 {
   Schema& schema = this->getSchema();
   auto oldTuple = this->get();
@@ -290,6 +218,12 @@ void UpdateTableScan::update(UpdateStmt& updateData)
     // if no more space left set to empty, write to next spot
     slot[currSlotIdx].setOccupied(false);
 
+    // decrease page entry free space in current directory.
+    BufferFrame* directoryFrame = iter.getPageDirBuffer();
+    PageEntry* pageEntryList = reinterpret_cast<PageEntry*>(directoryFrame->bufferData.data() + sizeof(PageDirectory));
+    pageEntryList[iter.getPageEntryIndex()].freeSpace += this->get().recordSize;
+    directoryFrame->dirty = true;
+
     // Insert again
     std::vector<Tuple> insertTuples;
     insertTuples.emplace_back(std::move(oldTuple));
@@ -306,3 +240,4 @@ void UpdateTableScan::update(UpdateStmt& updateData)
   }
 
 }
+

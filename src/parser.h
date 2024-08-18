@@ -69,12 +69,17 @@ private:
   std::vector<ErrorMessage> errors;
   void addError(std::string message);
 public:
+
+  using StatementVariant = std::variant<Query, Insert, Schema, UpdateStmt, DeleteStmt>;
+
   Parser(std::string input) : lexer(input) {};
 
-  std::variant<Query, Insert, Schema> parseStatement();
+  StatementVariant parseStatement();
   Query parseQuery();
   Insert parseInsert();
   Schema parseCreate();
+  UpdateStmt parseUpdate();
+  DeleteStmt parseDelete();
   void parseTable(Query& query);
   std::unique_ptr<Predicate> parsePredicate();
   std::unique_ptr<Term> parseTerm();
