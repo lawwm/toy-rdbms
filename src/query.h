@@ -5,6 +5,7 @@
 #include <memory>
 #include <unordered_map>
 #include "common.h"
+#include <iostream>
 
 struct Tuple;
 struct Schema;
@@ -399,6 +400,68 @@ public:
   std::vector<std::string> joinTable;
   std::vector<std::unique_ptr<Predicate>> predicate;
 };
+
+
+struct OrderComparator {
+  std::vector<int> idxList;
+  std::vector<bool> isAscendingList;
+
+  bool operator()(Tuple& lhs, Tuple& rhs) const {
+    for (int i = 0; i < idxList.size(); ++i) {
+      auto lhsConstant = lhs.fields[idxList[i]]->getConstant();
+      auto rhsConstant = rhs.fields[idxList[i]]->getConstant();
+      if (lhsConstant == rhsConstant) {
+        continue;
+      }
+      if (isAscendingList[i]) {
+        return lhsConstant <= rhsConstant;
+      }
+      else {
+        return lhsConstant >= rhsConstant;
+      }
+    }
+
+    return false;
+  }
+};
+
+
+struct OrderComparatorGenerator {
+  std::vector<std::string> tableList;
+  std::vector<std::string> fieldList;
+  std::vector<bool> isAscending;
+
+  OrderComparatorGenerator() {}
+  void addField(std::string table, std::string field, bool isAscending) {
+    tableList.push_back(table);
+    fieldList.push_back(field);
+    this->isAscending.push_back(isAscending);
+  }
+  void addField(std::string field, bool isAscending) {
+    this->addField(field, field, isAscending);
+  }
+
+  OrderComparator generate(Schema& schema) {
+    OrderComparator comparator;
+    for (int i = 0; i < fieldList.size(); ++i) {
+      bool foundMatch = false;
+      for (int j = 0; j < schema.fieldList.size(); ++j) {
+        if (schema.fieldList[j] == fieldList[i] && schema.tableList[j] == tableList[i]) {
+          comparator.idxList.push_back(j);
+          comparator.isAscendingList.push_back(isAscending[i]);
+          foundMatch = true;
+          break;
+        }
+      }
+      if (!foundMatch) {
+        std::cerr << "Field " << fieldList[i] << " not found in schema" << std::endl;
+      }
+    }
+
+    return comparator;
+  }
+};
+
 
 struct Insert {
   std::string table;

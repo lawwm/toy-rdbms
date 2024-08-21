@@ -107,6 +107,24 @@ bool FileManager::doesFileExists(const std::string& fileName)
   return std::filesystem::exists(fileName);
 }
 
+bool FileManager::deleteFile(const std::string& fileName)
+{
+  if (this->fileMap.find(fileName) != this->fileMap.end()) {
+    this->fileMap.at(fileName).close();
+    this->fileMap.erase(fileName);
+  }
+
+
+  if (std::filesystem::remove(fileName) != 0) {
+    std::cerr << "Error deleting file " << fileName << std::endl;
+    return false;
+  }
+  else {
+    std::cout << "File successfully deleted " << fileName << std::endl;
+    return true;
+  }
+}
+
 void HeapFile::createHeapFile(ResourceManager& rm, std::string filename, const u32 newPages) {
   auto& fm = rm.fm;
   auto& bm = rm.bm;

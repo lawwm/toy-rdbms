@@ -4,6 +4,8 @@
 #include "../src/scan/SelectScan.h"
 #include "../src/scan/TableScan.h"
 #include "./test_utils.h"
+#include "../src/scan/TempTable.h"
+
 #include "memory"
 
 
@@ -83,6 +85,29 @@ TEST_CASE("Insert tuple") {
 
     REQUIRE(selectedTuples.size() == 2);
 
+  }
+}
+
+TEST_CASE("MEMES") {
+  std::string fileName = "employee";
+  DeferDeleteFile deferDeleteFile(fileName);
+  {
+    std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
+
+    HeapFile::createHeapFile(*rm, fileName);
+
+    // Create schema
+    Schema schema;
+    schema.addField(fileName, "name", std::make_unique<ReadVarCharField>());
+    schema.addField(fileName, "employment", std::make_unique<ReadFixedCharField>(20));
+    schema.addField(fileName, "age", std::make_unique<ReadIntField>());
+
+    std::unique_ptr<Scan> tableScan = std::make_unique<TableScan>(fileName, rm, schema);
+    std::unique_ptr<Scan> tempTableScan = std::make_unique<TempTableScan>(std::move(tableScan), rm);
+    tempTableScan->getFirst();
+    while (tempTableScan->next()) {
+      auto result = tempTableScan->get();
+    }
   }
 }
 

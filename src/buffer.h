@@ -139,6 +139,8 @@ public:
   void createFileIfNotExists(const std::string& fileName);
 
   bool doesFileExists(const std::string& fileName);
+
+  bool deleteFile(const std::string& fileName);
 };
 
 
