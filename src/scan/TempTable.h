@@ -43,7 +43,7 @@ public:
       this->scan->getFirst();
       while (scan->next()) {
         std::vector<Tuple> tuples;
-        tuples.push_back(std::move(scan->get()));
+        tuples.push_back(scan->get());
         HeapFile::insertTuples(iter, tuples);
       }
 

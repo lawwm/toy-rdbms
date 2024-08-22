@@ -11,6 +11,7 @@
 #include "./scan/ProductScan.h"
 #include "./scan/SelectScan.h"
 #include "./scan/ProjectScan.h"
+#include "./scan/MergeSortScan.h"
 
 class Executor {
 public:
@@ -50,6 +51,10 @@ public:
       lhs = std::make_unique<ProjectScan>(std::move(lhs), queryStmt.selectFields);
     }
 
+    // order by
+    if (queryStmt.generator.isAscending.size() > 0) {
+      lhs = createSortedTempTable(this->resourceManager->fm.getBlockSize(), 4, lhs, queryStmt.generator, "temp", resourceManager);
+    }
 
     return lhs;
   }

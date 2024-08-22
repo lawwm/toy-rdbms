@@ -149,3 +149,24 @@ std::unordered_map<std::string, Schema> getSchemaFromTableName(std::vector<std::
 
   return res;
 }
+
+
+OrderComparator OrderComparatorGenerator::generate(Schema& schema) {
+  OrderComparator comparator;
+  for (int i = 0; i < selectFields.size(); ++i) {
+    bool foundMatch = false;
+    for (int j = 0; j < schema.fieldList.size(); ++j) {
+      if (Field(schema.tableList[j], schema.fieldList[j]) == this->selectFields[i].get()) {
+        comparator.idxList.push_back(j);
+        comparator.isAscendingList.push_back(isAscending[i]);
+        foundMatch = true;
+        break;
+      }
+    }
+    if (!foundMatch) {
+      std::cerr << "Field not found in schema" << std::endl;
+    }
+  }
+
+  return comparator;
+}

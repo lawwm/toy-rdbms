@@ -159,8 +159,7 @@ Tuple ModifyTableScan::get()
     output.push_back(std::move(wf));
   }
 
-  Tuple tuple(std::move(output));
-  return tuple;
+  return Tuple(std::move(output));
 }
 
 // so fucking cooked.

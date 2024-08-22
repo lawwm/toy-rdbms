@@ -332,11 +332,42 @@ namespace HeapFile {
     };
 
     ~HeapFileIterator() {
-      resourceManager->bm.unpin(resourceManager->fm, pageDirectoryId);
-      if (pageBuffer) {
-        resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
+      if (resourceManager) {
+        resourceManager->bm.unpin(resourceManager->fm, pageDirectoryId);
+        if (pageBuffer) {
+          resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
+        }
       }
     }
+
+    HeapFileIterator(const HeapFileIterator& other) = delete;
+    HeapFileIterator& operator=(const HeapFileIterator& other) = delete;
+    HeapFileIterator(HeapFileIterator&& other) = delete;
+    HeapFileIterator& operator=(HeapFileIterator&& other) {
+      if (this == &other) {
+        return *this;
+      }
+
+      // clear current 
+      //resourceManager->bm.unpin(resourceManager->fm, pageDirectoryId);
+      //if (pageBuffer) {
+      //  resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
+      //}
+
+      // copy over
+      pageDirectoryId = other.pageDirectoryId;
+      pageDirBuffer = other.pageDirBuffer;
+      pageBufferId = other.pageBufferId;
+      pageBuffer = other.pageBuffer;
+      pageEntryIndex = other.pageEntryIndex;
+      filename = std::move(other.filename);
+      resourceManager = std::move(other.resourceManager);
+
+      // set to nullptr so the other iterator does not unpin in destructor
+      other.resourceManager = nullptr;
+
+      return *this;
+    };
 
     BufferFrame* getPageDirBuffer() {
       return pageDirBuffer;
@@ -555,6 +586,7 @@ namespace HeapFile {
     }
   };
 
+  void insertTuple(HeapFile::HeapFileIterator& iter, const Tuple& tuple);
   void insertTuple(ResourceManager& rm, const std::string& filename, Tuple& tuple);
   void insertTuples(std::shared_ptr<ResourceManager>& rm, const std::string& filename, std::vector<Tuple>& tuples);
   void insertTuples(HeapFile::HeapFileIterator& iter, std::vector<Tuple>& tuples);

@@ -28,7 +28,10 @@ std::unordered_map<std::string, TokenType> keywords = {
   {"DELETE", DELETE},
   {"UPDATE", UPDATE},
   {"SET", SET},
-
+  {"ORDER", ORDER},
+  {"BY", BY},
+  {"ASC", ASC},
+  {"DESC", DESC}
   // do the uncapitalised keywords
 
 };
@@ -143,8 +146,14 @@ std::tuple<Token, int> Lexer::scanToken()
         start++;
       }
       start--;
-      if (keywords.find(lexeme) != keywords.end()) {
-        token = { keywords[lexeme], line, "" };
+
+      std::string capitalised = "";
+      for (char c : lexeme) {
+        capitalised += toupper(c);
+      }
+
+      if (keywords.find(capitalised) != keywords.end()) {
+        token = { keywords[capitalised], line, "" };
       }
       else {
         token = { IDENTIFIER, line, lexeme };
@@ -247,13 +256,31 @@ Query Parser::parseQuery()
     query.addPredicate(std::move(pred));
   }
 
+  if (lexer.matchToken(ORDER)) {
+    lexer.nextToken();
+    if (!lexer.matchToken(BY)) {
+      this->addError("Expected BY keyword");
+    }
+
+    do {
+      lexer.nextToken();
+      auto tableIdentifier = this->parseValue();
+
+      bool isAscending = true;
+      if (lexer.matchToken(ASC) || lexer.matchToken(DESC)) {
+        isAscending = lexer.nextToken().tokenType == ASC;
+      }
+      query.generator.addField(std::move(tableIdentifier), isAscending);
+    } while (lexer.matchToken(COMMA));
+  }
+
   if (!lexer.matchToken(SEMI_COLON)) {
     this->addError("Expected semicolon");
   }
   lexer.nextToken();
-  if (!lexer.isEOF()) {
-    this->addError("Unexpected token");
-  }
+  //if (!lexer.isEOF()) {
+  //  this->addError("Unexpected token");
+  //}
   return query;
 }
 

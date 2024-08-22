@@ -112,6 +112,7 @@ public:
   virtual u32 getLength() = 0;
   virtual void write(char* buffer, u32 offset) = 0;
   virtual Constant getConstant() = 0;
+  virtual std::unique_ptr<WriteField> clone() = 0;
 };
 
 class ReadField {
@@ -147,6 +148,10 @@ public:
 
   virtual Constant getConstant() override {
     return Constant(value);
+  }
+
+  virtual std::unique_ptr<WriteField> clone() override {
+    return std::make_unique<VarCharField>(value, physicalSize);
   }
 };
 
@@ -194,7 +199,9 @@ public:
     return Constant(value);
   }
 
-
+  virtual std::unique_ptr<WriteField> clone() override {
+    return std::make_unique<FixedCharField>(length, value);
+  }
 };
 
 class ReadFixedCharField : public ReadField {
@@ -239,6 +246,9 @@ public:
   virtual Constant getConstant() override {
     return Constant(value);
   }
+  virtual std::unique_ptr<WriteField> clone() override {
+    return std::make_unique<IntField>(value);
+  }
 };
 
 class ReadIntField : public ReadField {
@@ -274,6 +284,36 @@ struct Tuple {
     for (auto& field : this->fields) {
       recordSize += field->getLength();
     }
+  }
+
+  Tuple(Tuple&& other) : fields{ std::move(other.fields) }, recordSize{ other.recordSize } {}
+  Tuple(const Tuple& other) {
+    for (auto& field : other.fields) {
+      this->fields.push_back(field->clone());
+    }
+    this->recordSize = other.recordSize;
+  }
+
+  Tuple& operator=(Tuple&& other) {
+    if (this == &other) {
+      return *this;
+    }
+    this->fields.clear();
+    this->fields = std::move(other.fields);
+    this->recordSize = other.recordSize;
+    return *this;
+  }
+
+  Tuple& operator=(const Tuple& other) {
+    if (this == &other) {
+      return *this;
+    }
+    this->fields.clear();
+    for (auto& field : other.fields) {
+      fields.push_back(field->clone());
+    }
+    recordSize = other.recordSize;
+    return *this;
   }
 
   u32 set(u32 idx, std::unique_ptr<WriteField> field) {
@@ -383,30 +423,12 @@ private:
   std::unique_ptr<Predicate> rhs;
 };
 
-class Query {
-public:
-  Query() = default;
-  void addField(std::unique_ptr<TableValue> field) {
-    selectFields.push_back(std::move(field));
-  }
-  void addJoinTable(std::string table) {
-    joinTable.push_back(table);
-  }
-  void addPredicate(std::unique_ptr<Predicate> pred) {
-    predicate.push_back(std::move(pred));
-  }
-
-  std::vector<std::unique_ptr<TableValue>> selectFields;
-  std::vector<std::string> joinTable;
-  std::vector<std::unique_ptr<Predicate>> predicate;
-};
-
 
 struct OrderComparator {
   std::vector<int> idxList;
   std::vector<bool> isAscendingList;
 
-  bool operator()(Tuple& lhs, Tuple& rhs) const {
+  bool operator()(const Tuple& lhs, const Tuple& rhs) const {
     for (int i = 0; i < idxList.size(); ++i) {
       auto lhsConstant = lhs.fields[idxList[i]]->getConstant();
       auto rhsConstant = rhs.fields[idxList[i]]->getConstant();
@@ -427,41 +449,36 @@ struct OrderComparator {
 
 
 struct OrderComparatorGenerator {
-  std::vector<std::string> tableList;
-  std::vector<std::string> fieldList;
+  std::vector<std::unique_ptr<TableValue>> selectFields;
   std::vector<bool> isAscending;
 
   OrderComparatorGenerator() {}
-  void addField(std::string table, std::string field, bool isAscending) {
-    tableList.push_back(table);
-    fieldList.push_back(field);
+  void addField(std::unique_ptr<TableValue> field, bool isAscending) {
+    selectFields.push_back(std::move(field));
     this->isAscending.push_back(isAscending);
   }
-  void addField(std::string field, bool isAscending) {
-    this->addField(field, field, isAscending);
-  }
 
-  OrderComparator generate(Schema& schema) {
-    OrderComparator comparator;
-    for (int i = 0; i < fieldList.size(); ++i) {
-      bool foundMatch = false;
-      for (int j = 0; j < schema.fieldList.size(); ++j) {
-        if (schema.fieldList[j] == fieldList[i] && schema.tableList[j] == tableList[i]) {
-          comparator.idxList.push_back(j);
-          comparator.isAscendingList.push_back(isAscending[i]);
-          foundMatch = true;
-          break;
-        }
-      }
-      if (!foundMatch) {
-        std::cerr << "Field " << fieldList[i] << " not found in schema" << std::endl;
-      }
-    }
-
-    return comparator;
-  }
+  OrderComparator generate(Schema& schema);
 };
 
+class Query {
+public:
+  Query() = default;
+  void addField(std::unique_ptr<TableValue> field) {
+    selectFields.push_back(std::move(field));
+  }
+  void addJoinTable(std::string table) {
+    joinTable.push_back(table);
+  }
+  void addPredicate(std::unique_ptr<Predicate> pred) {
+    predicate.push_back(std::move(pred));
+  }
+
+  std::vector<std::unique_ptr<TableValue>> selectFields;
+  std::vector<std::string> joinTable;
+  std::vector<std::unique_ptr<Predicate>> predicate;
+  OrderComparatorGenerator generator;
+};
 
 struct Insert {
   std::string table;
@@ -484,7 +501,7 @@ struct DeleteStmt {
 const std::string TABLE_NAME = "table_name";
 const std::string FIELD_NAME = "field_name";
 const std::string FIELD_TYPE = "field_type";
-const std::string ORDER = "order";
+const std::string FIELD_ORDER = "order";
 const std::string SCHEMA_TABLE = "schema";
 
 struct Schema {
@@ -539,7 +556,8 @@ struct Schema {
       writeFields.push_back(std::make_unique<VarCharField>(fieldList[i]));
       writeFields.push_back(std::make_unique<VarCharField>(fieldMap[fieldList[i]]->serializeType()));
       writeFields.push_back(std::make_unique<IntField>(i));
-      tuples.push_back(Tuple(std::move(writeFields)));
+      Tuple tuple(std::move(writeFields));
+      tuples.push_back(tuple);
     }
 
     return tuples;
@@ -556,7 +574,7 @@ static Schema schemaTable = []() {
   schemaTable.addField(SCHEMA_TABLE, TABLE_NAME, std::make_unique<ReadVarCharField>());
   schemaTable.addField(SCHEMA_TABLE, FIELD_NAME, std::make_unique<ReadVarCharField>());
   schemaTable.addField(SCHEMA_TABLE, FIELD_TYPE, std::make_unique<ReadVarCharField>());
-  schemaTable.addField(SCHEMA_TABLE, ORDER, std::make_unique<ReadIntField>()); // start from zero
+  schemaTable.addField(SCHEMA_TABLE, FIELD_ORDER, std::make_unique<ReadIntField>()); // start from zero
   return schemaTable;
   }();
 

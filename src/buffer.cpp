@@ -264,53 +264,58 @@ PageId HeapFile::appendNewHeapPage(ResourceManager& rm, std::string filename) {
   return tuplePageId;
 }
 
+void HeapFile::insertTuple(HeapFile::HeapFileIterator& iter, const Tuple& tuple) {
+  iter.traverseFromStartTilFindSpace(tuple.recordSize);
+  // Decrease page entry free space size
+  BufferFrame* directoryFrame = iter.getPageDirBuffer();
+  PageEntry* pageEntryList = reinterpret_cast<PageEntry*>(directoryFrame->bufferData.data() + sizeof(PageDirectory));
+  pageEntryList[iter.getPageEntryIndex()].freeSpace -= tuple.recordSize;
+  directoryFrame->dirty = true;
+
+  // Get the tuple page headers.
+  BufferFrame* tupleFrame = iter.getPageBuffer();
+  TuplePage* pe = reinterpret_cast<TuplePage*>(tupleFrame->bufferData.data());
+  Slot* slot = reinterpret_cast<Slot*>(tupleFrame->bufferData.data() + sizeof(TuplePage));
+  u32 numberOfSlots = pe->numberOfSlots;
+
+  // find an empty slot
+  u32 emptySlotIdx = u32Max;
+  for (u32 i = 0; i < numberOfSlots; ++i) {
+    if (!slot[i].isOccupied()) {
+      emptySlotIdx = i;
+      break;
+    }
+  }
+
+  if (emptySlotIdx == u32Max) {
+    emptySlotIdx = numberOfSlots;
+    pe->numberOfSlots += 1;
+    pageEntryList[iter.getPageEntryIndex()].freeSpace -= sizeof(Slot);
+  }
+
+  // Set current slot to be occupied
+  auto& currSlot = slot[emptySlotIdx];
+  u32 prevSize = pe->lastOccupiedPosition;
+  u32 offset = pe->lastOccupiedPosition - tuple.recordSize;
+  pe->lastOccupiedPosition -= tuple.recordSize;
+  currSlot.setOccupied(true);
+  currSlot.setOffset(offset);
+
+  // Write the tuple to the buffer
+  for (auto& field : tuple.fields) {
+    field->write(tupleFrame->bufferData.data(), offset);
+    offset += field->getLength();
+  }
+  tupleFrame->dirty = true;
+}
+
 void HeapFile::insertTuples(HeapFile::HeapFileIterator& iter, std::vector<Tuple>& tuples) {
   std::sort(begin(tuples), end(tuples), [](auto& lhs, auto& rhs) {
     return lhs.recordSize < rhs.recordSize;
     });
 
   for (auto& tuple : tuples) {
-    iter.traverseFromStartTilFindSpace(tuple.recordSize);
-    // Decrease page entry free space size
-    BufferFrame* directoryFrame = iter.getPageDirBuffer();
-    PageEntry* pageEntryList = reinterpret_cast<PageEntry*>(directoryFrame->bufferData.data() + sizeof(PageDirectory));
-    pageEntryList[iter.getPageEntryIndex()].freeSpace -= tuple.recordSize;
-    directoryFrame->dirty = true;
-
-    // Get the tuple page headers.
-    BufferFrame* tupleFrame = iter.getPageBuffer();
-    TuplePage* pe = reinterpret_cast<TuplePage*>(tupleFrame->bufferData.data());
-    Slot* slot = reinterpret_cast<Slot*>(tupleFrame->bufferData.data() + sizeof(TuplePage));
-    u32 numberOfSlots = pe->numberOfSlots;
-
-    // find an empty slot
-    u32 emptySlotIdx = u32Max;
-    for (u32 i = 0; i < numberOfSlots; ++i) {
-      if (!slot[i].isOccupied()) {
-        emptySlotIdx = i;
-        break;
-      }
-    }
-
-    if (emptySlotIdx == u32Max) {
-      emptySlotIdx = numberOfSlots;
-      pe->numberOfSlots += 1;
-      pageEntryList[iter.getPageEntryIndex()].freeSpace -= sizeof(Slot);
-    }
-
-    // Set current slot to be occupied
-    auto& currSlot = slot[emptySlotIdx];
-    u32 offset = pe->lastOccupiedPosition - tuple.recordSize;
-    pe->lastOccupiedPosition -= tuple.recordSize;
-    currSlot.setOccupied(true);
-    currSlot.setOffset(offset);
-
-    // Write the tuple to the buffer
-    for (auto& field : tuple.fields) {
-      field->write(tupleFrame->bufferData.data(), offset);
-      offset += field->getLength();
-    }
-    tupleFrame->dirty = true;
+    HeapFile::insertTuple(iter, tuple);
   }
 }
 
