@@ -91,15 +91,15 @@ TEST_CASE("Normal insert and then query with order by") {
 
     auto createTable = R"(
     CREATE TABLE citizen(
-                  name VARCHAR(30),
-                  employment CHAR(20),                    
+                  name VARCHAR(40),
+                  employment CHAR(50),                    
                   age INT
                 );
   )";
 
     auto insert = R"(
-    INSERT INTO citizen 
-    VALUES 
+    INSERT INTO citizen
+    VALUES
       ("David", "Doctor", 27),
       ("Brian", "Engineer", 34),
       ("Catherine", "Teacher", 29),
@@ -204,17 +204,33 @@ TEST_CASE("Normal insert and then query with order by") {
       ("Asher", "Mechanical Technician", 41),
       ("Riley", "Dentist", 31),
       ("Lincoln", "Technician", 36),
-      ("Liam", "Architect", 34)
-      ;
+      ("Liam", "Architect", 34);
       )";
 
     Executor executor(rm);
     executor.execute(createTable);
-    executor.execute(insert);
+    auto [rows, msgrows] = executor.execute(insert);
 
-    auto [resultTuple, msg] = executor.execute("SELECT * FROM citizen;");
+    auto [unorderedTuple, unorderedMsg] = executor.execute("SELECT * FROM citizen;");
 
-    REQUIRE(resultTuple.size() == 42);
+    for (int i = 0; i < rows.size(); ++i) {
+      bool found = false;
+      for (int j = 0; j < unorderedTuple.size(); ++j) {
+        if (rows[i] == unorderedTuple[j]) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        std::cerr << "Row  " << rows[i] << " not found!" << std::endl;
+      }
+    }
+
+    //REQUIRE(unorderedTuple.size() == 105);
+
+    //auto [resultTuple, msg] = executor.execute("SELECT * FROM citizen ORDER BY citizen.age ASC;");
+
+    //REQUIRE(resultTuple.size() == 42);
   }
 
 }

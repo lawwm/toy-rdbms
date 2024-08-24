@@ -170,3 +170,18 @@ OrderComparator OrderComparatorGenerator::generate(Schema& schema) {
 
   return comparator;
 }
+
+
+std::ostream& operator<<(std::ostream& ostrm, const Tuple& tuple) {
+  for (auto& item : tuple.fields) {
+    Constant c = item->getConstant();
+    if (c.constantType == ConstantType::NUMBER) {
+      ostrm << c.num << " ";
+    }
+    else {
+      ostrm << c.str << " ";
+    }
+  }
+
+  return ostrm;
+}

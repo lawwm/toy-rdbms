@@ -42,3 +42,39 @@ TEST_CASE("Check buffer works") {
   std::memcpy(&readInt, readTest.data() + offset, sizeof(int));
   REQUIRE(readInt == testInt);
 }
+
+TEST_CASE("CreateHeapFile works") {
+  const std::string fileName = "testbuffer12345";
+  DeferDeleteFile deferDeleteFile(fileName);
+
+  std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
+  HeapFile::createHeapFile(*rm, fileName, 8);
+
+  u32 numPages = rm->fm.getNumberOfPages(fileName);
+  REQUIRE(numPages == 9);
+
+  u32 currPage = 0;
+  for (; currPage < 9; ++currPage) {
+    BufferFrame* bf = rm->bm.pin((rm->fm), PageId{ fileName, currPage });
+    PageType* pt = (PageType*)bf->bufferData.data();
+    if (currPage == 0) {
+      REQUIRE(*pt == PageType::DirectoryPage);
+    }
+    else {
+      REQUIRE(*pt == PageType::TuplePage);
+    }
+    rm->bm.unpin(rm->fm, PageId{ fileName, currPage });
+  }
+
+  for (; currPage <= 14; ++currPage) {
+    PageId pageId = HeapFile::appendNewHeapPage(*rm, fileName);
+    BufferFrame* bf = rm->bm.pin((rm->fm), pageId);
+    PageType* pt = (PageType*)bf->bufferData.data();
+    REQUIRE(*pt == PageType::TuplePage);
+    rm->bm.unpin(rm->fm, pageId);
+    REQUIRE(pageId.pageNumber == currPage);
+  }
+
+  numPages = rm->fm.getNumberOfPages(fileName);
+  REQUIRE(numPages == 15);
+}

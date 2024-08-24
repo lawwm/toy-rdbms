@@ -294,21 +294,6 @@ struct Tuple {
     this->recordSize = other.recordSize;
   }
 
-  bool operator==(Tuple& other) {
-    if (this->fields.size() == other.fields.size()) {
-      for (int k = 0; k < other.fields.size(); ++k) {
-        if (this->fields[k]->getConstant() != other.fields[k]->getConstant()) {
-          return false;
-        }
-      }
-    }
-    else {
-      return false;
-    }
-
-    return true;
-  }
-
   Tuple& operator=(Tuple&& other) {
     if (this == &other) {
       return *this;
@@ -343,7 +328,9 @@ struct Tuple {
     return recordSize;
   }
 
-  friend std::ostream& operator<<(std::ostream& ostrm, const Tuple& tuple);
+  friend std::ostream& operator<<(std::ostream& ostrm, const Tuple& tuple) {
+
+  }
 };
 
 enum class TermOperand {

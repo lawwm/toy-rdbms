@@ -64,6 +64,8 @@ u32 FileManager::append(std::string filename, int numberOfBlocksToAppend) {
     fileMap.insert({ filename, std::fstream(filename, std::ios::in | std::ios::out | std::ios::binary) });
   }
 
+  //u32 initialFileSize = getNumberOfPages(filename);
+
   auto& fileStream = fileMap.at(filename);
   std::vector<char> emptyBufferData(blockSize, 0);
 
@@ -76,13 +78,14 @@ u32 FileManager::append(std::string filename, int numberOfBlocksToAppend) {
     numberOfBlocksToAppend--;
   }
 
+  fileStream.flush();
   if (!fileStream) {
     throw std::runtime_error("Error appending to file");
   }
 
   u32 end = std::filesystem::file_size(filename);
-
-  return end / blockSize;
+  //u32 finalFileSize = getNumberOfPages(filename);
+  return getNumberOfPages(filename) - 1;
 }
 
 void FileManager::createFileIfNotExists(const std::string& fileName) {
@@ -244,7 +247,7 @@ PageId HeapFile::appendNewHeapPage(ResourceManager& rm, std::string filename) {
     pd = (PageDirectory*)bf->bufferData.data();
   }
 
-  u32 lastPageNumber = fm.append(currentPageId.filename) - 1;
+  u32 lastPageNumber = fm.append(currentPageId.filename);
 
   // Add page entry to the page directory
   u32 freeSpace = fm.getBlockSize() - ((u32)sizeof(TuplePage));
@@ -265,6 +268,10 @@ PageId HeapFile::appendNewHeapPage(ResourceManager& rm, std::string filename) {
 }
 
 void HeapFile::insertTuple(HeapFile::HeapFileIterator& iter, const Tuple& tuple) {
+  //auto nametuple = tuple.fields[0]->getConstant().str;
+  //if (nametuple == "Julian" || nametuple == "Skylar") {
+  //  int a = 0;
+  //}
   iter.traverseFromStartTilFindSpace(tuple.recordSize);
   // Decrease page entry free space size
   BufferFrame* directoryFrame = iter.getPageDirBuffer();
@@ -291,6 +298,7 @@ void HeapFile::insertTuple(HeapFile::HeapFileIterator& iter, const Tuple& tuple)
     emptySlotIdx = numberOfSlots;
     pe->numberOfSlots += 1;
     pageEntryList[iter.getPageEntryIndex()].freeSpace -= sizeof(Slot);
+    directoryFrame->dirty = true;
   }
 
   // Set current slot to be occupied
