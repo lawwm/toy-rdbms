@@ -38,6 +38,8 @@ namespace HeapFile {
     // misc data
     std::string filename;
     std::shared_ptr<ResourceManager> resourceManager;
+
+    void createHeapFile(ResourceManager& rm, std::string filename);
   public:
     HeapFileIterator(std::string filename, std::shared_ptr<ResourceManager> rm);
 
@@ -93,11 +95,9 @@ namespace HeapFile {
     bool traverseFromStartTilFindSpace(u32 recordSize);
 
     bool canDirStorePageEntry();
-  };
-  // create new heap file
-  void createHeapFile(ResourceManager& rm, std::string filename);
-  void insertTuple(HeapFile::HeapFileIterator& iter, const Tuple& tuple);
-  void insertTuples(HeapFile::HeapFileIterator& iter, std::vector<Tuple>& tuples);
-  void insertTuples(std::shared_ptr<ResourceManager>& rm, const std::string& filename, std::vector<Tuple>& tuples);
 
+    void insertTuple(const Tuple& tuple);
+
+    void insertTuples(std::vector<Tuple>& tuples);
+  };
 };

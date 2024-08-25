@@ -14,8 +14,7 @@ TEST_CASE("Insert tuple") {
   DeferDeleteFile deferDeleteFile(fileName);
   {
     std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
-
-    HeapFile::createHeapFile(*rm, fileName);
+    HeapFile::HeapFileIterator iter(fileName, rm);
 
     // Create schema
     Schema schema;
@@ -44,7 +43,7 @@ TEST_CASE("Insert tuple") {
       writeTuples.push_back(schema.createTuple(tokenList));
     }
     // tuples will be sorted by length within this function
-    HeapFile::insertTuples(rm, fileName, writeTuples);
+    iter.insertTuples(writeTuples);
 
 
     // Ensure can read from file
@@ -94,7 +93,7 @@ TEST_CASE("MEMES") {
   {
     std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
 
-    HeapFile::createHeapFile(*rm, fileName);
+    HeapFile::HeapFileIterator iter(fileName, rm);
 
     // Create schema
     Schema schema;

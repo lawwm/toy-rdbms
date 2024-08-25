@@ -37,15 +37,11 @@ public:
     else {
       // create a new table
       this->fileName = "temp_" + std::to_string(tempNameAtomic.fetch_add(1));
-      HeapFile::createHeapFile(*resourceManager, fileName);
-
       // insert the tuples into the new table
       HeapFile::HeapFileIterator iter = HeapFile::HeapFileIterator(fileName, resourceManager);
       this->scan->getFirst();
       while (scan->next()) {
-        std::vector<Tuple> tuples;
-        tuples.push_back(scan->get());
-        HeapFile::insertTuples(iter, tuples);
+        iter.insertTuple(scan->get());
       }
 
       // create a table scan on the new table

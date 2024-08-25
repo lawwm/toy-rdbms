@@ -3,6 +3,10 @@
 
 HeapFile::HeapFileIterator::HeapFileIterator(std::string filename, std::shared_ptr<ResourceManager> rm) : pageBuffer{ nullptr },
 pageEntryIndex{ u32Max }, filename{ filename }, resourceManager{ rm } {
+  if (!this->resourceManager->fm.doesFileExists(filename)) {
+    this->createHeapFile(*this->resourceManager, filename);
+  }
+
   pageDirectoryId = PageId{ filename, 0 };
   pageDirBuffer = resourceManager->bm.pin(resourceManager->fm, pageDirectoryId);
 };
@@ -183,7 +187,7 @@ bool HeapFile::HeapFileIterator::canDirStorePageEntry() {
 }
 
 
-void HeapFile::createHeapFile(ResourceManager& rm, std::string filename) {
+void HeapFile::HeapFileIterator::createHeapFile(ResourceManager& rm, std::string filename) {
   auto& fm = rm.fm;
   auto& bm = rm.bm;
 
@@ -218,16 +222,16 @@ void HeapFile::createHeapFile(ResourceManager& rm, std::string filename) {
   bm.unpin(fm, pageId);
 }
 
-void HeapFile::insertTuple(HeapFile::HeapFileIterator& iter, const Tuple& tuple) {
-  iter.traverseFromStartTilFindSpace(tuple.recordSize + sizeof(Slot));
+void HeapFile::HeapFileIterator::insertTuple(const Tuple& tuple) {
+  this->traverseFromStartTilFindSpace(tuple.recordSize + sizeof(Slot));
   // Decrease page entry free space size
-  BufferFrame* directoryFrame = iter.getPageDirBuffer();
+  BufferFrame* directoryFrame = this->getPageDirBuffer();
   PageEntry* pageEntryList = reinterpret_cast<PageEntry*>(directoryFrame->bufferData.data() + sizeof(PageDirectory));
-  pageEntryList[iter.getPageEntryIndex()].freeSpace -= tuple.recordSize;
+  pageEntryList[this->getPageEntryIndex()].freeSpace -= tuple.recordSize;
   directoryFrame->dirty = true;
 
   // Get the tuple page headers.
-  BufferFrame* tupleFrame = iter.getPageBuffer();
+  BufferFrame* tupleFrame = this->getPageBuffer();
   TuplePage* pe = reinterpret_cast<TuplePage*>(tupleFrame->bufferData.data());
   Slot* slot = reinterpret_cast<Slot*>(tupleFrame->bufferData.data() + sizeof(TuplePage));
   u32 numberOfSlots = pe->numberOfSlots;
@@ -244,7 +248,7 @@ void HeapFile::insertTuple(HeapFile::HeapFileIterator& iter, const Tuple& tuple)
   if (emptySlotIdx == u32Max) {
     emptySlotIdx = numberOfSlots;
     pe->numberOfSlots += 1;
-    pageEntryList[iter.getPageEntryIndex()].freeSpace -= sizeof(Slot);
+    pageEntryList[this->getPageEntryIndex()].freeSpace -= sizeof(Slot);
     directoryFrame->dirty = true;
   }
 
@@ -264,19 +268,12 @@ void HeapFile::insertTuple(HeapFile::HeapFileIterator& iter, const Tuple& tuple)
   tupleFrame->dirty = true;
 }
 
-void HeapFile::insertTuples(HeapFile::HeapFileIterator& iter, std::vector<Tuple>& tuples) {
+void HeapFile::HeapFileIterator::insertTuples(std::vector<Tuple>& tuples) {
   std::sort(begin(tuples), end(tuples), [](auto& lhs, auto& rhs) {
     return lhs.recordSize < rhs.recordSize;
     });
 
   for (auto& tuple : tuples) {
-    HeapFile::insertTuple(iter, tuple);
+    this->insertTuple(tuple);
   }
 }
-
-void HeapFile::insertTuples(std::shared_ptr<ResourceManager>& rm, const std::string& filename, std::vector<Tuple>& tuples) {
-  HeapFile::HeapFileIterator iter(filename, rm);
-  iter.findFirstDir();
-  insertTuples(iter, tuples);
-}
-

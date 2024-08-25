@@ -17,7 +17,7 @@ class Executor {
 public:
   Executor(std::shared_ptr<ResourceManager> resourceManager) : resourceManager{ resourceManager } {
     if (!resourceManager->fm.doesFileExists(SCHEMA_TABLE)) {
-      HeapFile::createHeapFile(*resourceManager, SCHEMA_TABLE);
+      HeapFile::HeapFileIterator iter(SCHEMA_TABLE, resourceManager);
     }
   }
 
@@ -84,7 +84,8 @@ public:
       for (auto& tokenList : insertStmt.values) {
         tuples.push_back(schema.createTuple(tokenList));
       }
-      HeapFile::insertTuples(resourceManager, insertStmt.table, tuples);
+      HeapFile::HeapFileIterator iter(insertStmt.table, resourceManager);
+      iter.insertTuples(tuples);
 
       return { std::move(tuples), "" };
     }
@@ -155,8 +156,8 @@ public:
         return { std::vector<Tuple>{} ,"Table already exists\n" };
       }
       // Base level schema, there can only be 1 and only 1 table
-      HeapFile::createHeapFile(*resourceManager, schema.tableList.at(0));
-      HeapFile::insertTuples(resourceManager, SCHEMA_TABLE, tuples);
+      HeapFile::HeapFileIterator schemaIter(SCHEMA_TABLE, resourceManager);
+      schemaIter.insertTuples(tuples);
 
       return { std::move(tuples), "" };
     }

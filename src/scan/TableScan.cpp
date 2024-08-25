@@ -244,8 +244,7 @@ void ModifyTableScan::update(UpdateStmt& updateData)
     // Insert again
     std::vector<Tuple> insertTuples;
     insertTuples.emplace_back(std::move(oldTuple));
-    HeapFile::insertTuples(this->pushIter, insertTuples);
-
+    this->pushIter.insertTuples(insertTuples);
   }
   else {
     // if has space, update the current spot.

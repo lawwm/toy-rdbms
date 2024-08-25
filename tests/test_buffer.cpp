@@ -52,7 +52,7 @@ TEST_CASE("CreateHeapFile works") {
   u32 addedTuplePages = 100;
 
   std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
-  HeapFile::createHeapFile(*rm, fileName);
+  HeapFile::HeapFileIterator iter(fileName, rm);
 
   u32 numOfEntryList = (rm->fm.getBlockSize() - sizeof(PageDirectory)) / sizeof(PageEntry);
   u32 numPages = rm->fm.getNumberOfPages(fileName);

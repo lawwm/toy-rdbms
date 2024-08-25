@@ -44,7 +44,6 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
   std::vector<std::string> fileList;
 
   fileList.push_back(fileName + "_" + std::to_string(fileIndex++));
-  HeapFile::createHeapFile(*resourceManager, fileList.back());
   std::unique_ptr<HeapFile::HeapFileIterator> iter = std::make_unique<HeapFile::HeapFileIterator>(fileList.back(), resourceManager);
 
   u32 buffer_size = 0;
@@ -61,7 +60,7 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
         previousTuple = *set.begin();
         buffer_size -= previousTuple.recordSize;
 
-        HeapFile::insertTuple(*iter, previousTuple);
+        iter->insertTuple(previousTuple);
         set.erase(set.begin());
       }
       else
@@ -71,7 +70,6 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
         {
           // write the file
           fileList.push_back(fileName + "_" + std::to_string(fileIndex++));
-          HeapFile::createHeapFile(*resourceManager, fileList.back());
           iter = std::make_unique<HeapFile::HeapFileIterator>(fileList.back(), resourceManager);
 
           noPreviousTuple = true;
@@ -80,7 +78,7 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
         {
           previousTuple = *itr;
           buffer_size -= previousTuple.recordSize;
-          HeapFile::insertTuple(*iter, previousTuple);
+          iter->insertTuple(previousTuple);
           set.erase(itr);
         }
       }
@@ -103,22 +101,20 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
       {
         tuples.push_back(tuple);
       }
-      HeapFile::insertTuples(*iter, tuples);
+      iter->insertTuples(tuples);
     }
     else
     {
       // write the file
       fileList.push_back(fileName + "_" + std::to_string(fileIndex++));
-      HeapFile::createHeapFile(*resourceManager, fileList.back());
       iter = std::make_unique<HeapFile::HeapFileIterator>(fileList.back(), resourceManager);
-      //iter = HeapFile::HeapFileIterator(fileList.back(), resourceManager);
 
       std::vector<Tuple> tuples;
       for (auto& tuple : set)
       {
         tuples.push_back(tuple);
       }
-      HeapFile::insertTuples(*iter, tuples);
+      iter->insertTuples(tuples);
     }
   }
 
@@ -134,7 +130,6 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
     {
       // create the file to write to
       newFileList.push_back(fileName + "_" + std::to_string(fileIndex++));
-      HeapFile::createHeapFile(*resourceManager, newFileList.back());
       iter = std::make_unique<HeapFile::HeapFileIterator>(newFileList.back(), resourceManager);
 
       // open table scans on the files to merge
@@ -167,7 +162,7 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
         pq.pop();
 
         // write the tuple to the new file
-        HeapFile::insertTuple(*iter, tuple);
+        iter->insertTuple(tuple);
 
         // get the next tuple from the scan
         if (scans[idx]->next())
