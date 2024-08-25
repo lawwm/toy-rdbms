@@ -3,6 +3,7 @@
 #include "../query.h"
 #include "../buffer.h"
 #include "./scan.h"
+#include "../HeapFileIterator.h"
 
 class TableScan : public Scan {
 private:

@@ -6,6 +6,7 @@
 #include <filesystem>
 #include "./test_utils.h"
 #include "../src/buffer.h"
+#include "../src/HeapFileIterator.h"
 
 TEST_CASE("Check buffer works") {
 

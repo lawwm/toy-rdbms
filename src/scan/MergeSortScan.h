@@ -5,6 +5,7 @@
 // Do a K-way merge on the temp tables.
 
 #include "./TempTable.h"
+#include "../HeapFileIterator.h"
 #include <queue>
 #include <functional>
 #include <set>

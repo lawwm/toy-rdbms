@@ -8,6 +8,7 @@
 #include "./scan.h"
 #include "./TableScan.h"
 #include "../query.h"
+#include "../HeapFileIterator.h"
 
 // input -> some scan.
 // output -> a table scan on the new table.
