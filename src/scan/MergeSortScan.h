@@ -43,7 +43,7 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
   std::vector<std::string> fileList;
 
   fileList.push_back(fileName + "_" + std::to_string(fileIndex++));
-  HeapFile::createHeapFile(*resourceManager, fileList.back(), 8);
+  HeapFile::createHeapFile(*resourceManager, fileList.back());
   std::unique_ptr<HeapFile::HeapFileIterator> iter = std::make_unique<HeapFile::HeapFileIterator>(fileList.back(), resourceManager);
 
   u32 buffer_size = 0;
@@ -70,7 +70,7 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
         {
           // write the file
           fileList.push_back(fileName + "_" + std::to_string(fileIndex++));
-          HeapFile::createHeapFile(*resourceManager, fileList.back(), 8);
+          HeapFile::createHeapFile(*resourceManager, fileList.back());
           iter = std::make_unique<HeapFile::HeapFileIterator>(fileList.back(), resourceManager);
 
           noPreviousTuple = true;
@@ -108,7 +108,7 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
     {
       // write the file
       fileList.push_back(fileName + "_" + std::to_string(fileIndex++));
-      HeapFile::createHeapFile(*resourceManager, fileList.back(), 8);
+      HeapFile::createHeapFile(*resourceManager, fileList.back());
       iter = std::make_unique<HeapFile::HeapFileIterator>(fileList.back(), resourceManager);
       //iter = HeapFile::HeapFileIterator(fileList.back(), resourceManager);
 
@@ -133,7 +133,7 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
     {
       // create the file to write to
       newFileList.push_back(fileName + "_" + std::to_string(fileIndex++));
-      HeapFile::createHeapFile(*resourceManager, newFileList.back(), 8);
+      HeapFile::createHeapFile(*resourceManager, newFileList.back());
       iter = std::make_unique<HeapFile::HeapFileIterator>(newFileList.back(), resourceManager);
 
       // open table scans on the files to merge

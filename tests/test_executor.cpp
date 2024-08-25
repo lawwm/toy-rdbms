@@ -430,4 +430,3 @@ TEST_CASE("Create two tables, populate them and query a join") {
 
 // semantic analysis tuple too long
 
-//
