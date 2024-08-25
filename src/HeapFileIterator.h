@@ -39,6 +39,7 @@ namespace HeapFile {
     std::string filename;
     std::shared_ptr<ResourceManager> resourceManager;
 
+    void print(u32 pageId, PageType pageType);
     void createHeapFile(ResourceManager& rm, std::string filename);
   public:
     HeapFileIterator(std::string filename, std::shared_ptr<ResourceManager> rm);

@@ -164,6 +164,10 @@ struct BufferFrame {
     std::memcpy(bufferData.data() + offset, data, length);
     dirty = true;
   }
+
+  void clear() {
+    this->pageId = emptyPageId;
+  }
 };
 
 
@@ -216,6 +220,9 @@ public:
     for (auto& buffer : bufferPool) {
       if (buffer.pageId == pageId) {
         buffer.pin--;
+        if (buffer.pin < 0) {
+          throw std::runtime_error("Breaks invariant: pin count cannot be negative");
+        }
         if (buffer.pin == 0 && buffer.dirty) {
           // write to disk
           buffer.dirty = false;

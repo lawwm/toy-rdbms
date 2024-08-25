@@ -56,41 +56,19 @@ TEST_CASE("CreateHeapFile works") {
 
   u32 numOfEntryList = (rm->fm.getBlockSize() - sizeof(PageDirectory)) / sizeof(PageEntry);
   u32 numPages = rm->fm.getNumberOfPages(fileName);
-  REQUIRE(numPages == numOfEntryList + 1);
 
-  //u32 currPage = 0;
-  //for (; currPage < 9; ++currPage) {
-  //  BufferFrame* bf = rm->bm.pin((rm->fm), PageId{ fileName, currPage });
-  //  PageType* pt = (PageType*)bf->bufferData.data();
-  //  if (currPage == 0) {
-  //    REQUIRE(*pt == PageType::DirectoryPage);
-  //  }
-  //  else {
-  //    REQUIRE(*pt == PageType::TuplePage);
-  //  }
-  //  rm->bm.unpin(rm->fm, PageId{ fileName, currPage });
-  //}
+  u32 DIRWITHPAGES = numOfEntryList + 1;
+  REQUIRE(numPages == DIRWITHPAGES);
 
-  //// Keep creating new pages until new page directory is inserted.
-  //for (; currPage <= addedTuplePages; ++currPage) {
-  //  PageId pageId = HeapFile::appendNewHeapPage(*rm, fileName);
-  //  BufferFrame* bf = rm->bm.pin((rm->fm), pageId);
-  //  PageType* pt = (PageType*)bf->bufferData.data();
-  //  REQUIRE(*pt == PageType::TuplePage);
-  //  rm->bm.unpin(rm->fm, pageId);
-  //}
+  u32 count = DIRWITHPAGES;
+  u32 power = 2;
+  for (int i = 0; i < 8; ++i) {
+    iter.extendHeapFile();
+    count = (power * DIRWITHPAGES);
+    power *= 2;
+    numPages = rm->fm.getNumberOfPages(fileName);
 
-  //numPages = rm->fm.getNumberOfPages(fileName);
-  //REQUIRE(numPages == initialTuplePages + addedTuplePages);
-
-  //HeapFile::HeapFileIterator iter(fileName, rm);
-  //iter.findFirstDir();
-  //u32 totalTuplePageCounts = 0;
-  //do {
-  //  const PageDirectory* pd = reinterpret_cast<PageDirectory*>(iter.getPageDirBuffer()->bufferData.data());
-  //  totalTuplePageCounts += pd->numberOfEntries;
-  //} while (iter.nextDir());
-
-  //REQUIRE(totalTuplePageCounts == (addedTuplePages + initialTuplePages));
+    REQUIRE(numPages == count);
+  }
 }
 

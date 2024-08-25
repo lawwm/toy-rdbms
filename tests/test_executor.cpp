@@ -2,7 +2,9 @@
 
 #include "../src/executor.h"
 #include "./test_utils.h"
-
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 TEST_CASE("Normal insert") {
   DeferDeleteFile deferDeleteFile({ "citizen", "schema" });
   {
@@ -83,6 +85,37 @@ TEST_CASE("Normal insert") {
 
 }
 
+TEST_CASE("FUCK MY LIFE") {
+  namespace fs = std::filesystem;
+  std::string filename = "example.txt";
+
+  // Create a file with some initial content
+  {
+    std::ofstream outFile(filename, std::ios::binary);
+    outFile << "This is some initial content.";
+  }
+
+  // Display the initial file size
+  std::uintmax_t initialSize = fs::file_size(filename);
+  std::cout << "Initial file size: " << initialSize << " bytes" << std::endl;
+
+  // Resize the file to a larger size
+  std::uintmax_t newSize = 1024 * 1000 * 1000; // 1 KB * 1000 = 1MB 
+  fs::resize_file(filename, newSize);
+
+  // Display the new file size
+  std::uintmax_t resizedSize = fs::file_size(filename);
+  std::cout << "File size after resizing: " << resizedSize << " bytes" << std::endl;
+
+  // Resize the file to a smaller size
+  newSize = 10; // 10 bytes
+  fs::resize_file(filename, newSize);
+
+  // Display the new file size
+  resizedSize = fs::file_size(filename);
+  std::cout << "File size after resizing to a smaller size: " << resizedSize << " bytes" << std::endl;
+
+}
 
 TEST_CASE("Normal insert and then query with order by") {
   DeferDeleteFile deferDeleteFile({ "citizen", "schema" });
