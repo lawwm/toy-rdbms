@@ -7,13 +7,13 @@
 TEST_CASE("Lexer succeeds for normal query") {
   auto s = R"(SELECT * 
             FROM 
-            table;)";
+            citizen;)";
   Lexer lexer(s);
   std::vector<Token> tokens;
   while (!lexer.isEOF()) {
     tokens.push_back(lexer.nextToken());
   }
-  std::vector<Token> expected = { Token{SELECT, 1}, Token{STAR, 1}, Token{FROM, 2}, Token{IDENTIFIER, 3, "table"}, Token{SEMI_COLON, 3} };
+  std::vector<Token> expected = { Token{SELECT, 1}, Token{STAR, 1}, Token{FROM, 2}, Token{IDENTIFIER, 3, "citizen"}, Token{SEMI_COLON, 3} };
   REQUIRE(tokens.size() == expected.size());
   for (int i = 0; i < tokens.size(); i++) {
     REQUIRE(tokens[i].tokenType == expected[i].tokenType);

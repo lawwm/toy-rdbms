@@ -50,7 +50,7 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
   input->getFirst();
   while (input->next())
   {
-    if (buffer_size > pageSize)
+    while (buffer_size > pageSize)
     {
       // Remove from set
       if (noPreviousTuple)
@@ -84,13 +84,11 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
         }
       }
     }
-    else
-      // Add to set
-    {
-      Tuple tuple = input->get();
-      buffer_size += tuple.recordSize;
-      set.insert(std::move(tuple));
-    }
+
+    // Add to set
+    Tuple tuple = input->get();
+    buffer_size += tuple.recordSize;
+    set.insert(std::move(tuple));
   }
 
   // insert remaining map items

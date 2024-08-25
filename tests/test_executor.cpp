@@ -211,26 +211,9 @@ TEST_CASE("Normal insert and then query with order by") {
     executor.execute(createTable);
     auto [rows, msgrows] = executor.execute(insert);
 
-    auto [unorderedTuple, unorderedMsg] = executor.execute("SELECT * FROM citizen;");
+    auto [resultTuple, msg] = executor.execute("SELECT * FROM citizen ORDER BY citizen.age ASC;");
 
-    for (int i = 0; i < rows.size(); ++i) {
-      bool found = false;
-      for (int j = 0; j < unorderedTuple.size(); ++j) {
-        if (rows[i] == unorderedTuple[j]) {
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        std::cerr << "Row  " << rows[i] << " not found!" << std::endl;
-      }
-    }
-
-    //REQUIRE(unorderedTuple.size() == 105);
-
-    //auto [resultTuple, msg] = executor.execute("SELECT * FROM citizen ORDER BY citizen.age ASC;");
-
-    //REQUIRE(resultTuple.size() == 42);
+    REQUIRE(resultTuple.size() == 105);
   }
 
 }

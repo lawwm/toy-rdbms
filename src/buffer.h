@@ -510,21 +510,11 @@ namespace HeapFile {
 
         // add a new page and corresponding page entry
         if (remainingPageDirSize >= sizeof(PageEntry)) {
+          if (pageBuffer) {
+            resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
+          }
+
           PageId pageId = HeapFile::appendNewHeapPage(*resourceManager, filename);
-         // u32 lastPageNumber = pageId.pageNumber;
-
-         // // add the page entry to page directory page
-         //// u32 lastPageNumber = pageId.pageNumber;
-         // PageEntry newPageEntry{ lastPageNumber, freeSpace };
-         // pageDirBuffer->modify(&newPageEntry, sizeof(PageEntry), sizeof(PageDirectory) + (pd->numberOfEntries * sizeof(PageEntry)));
-         // pd->numberOfEntries += 1;
-
-         // if (pageBuffer) {
-         //   resourceManager->bm.unpin(resourceManager->fm, pageBuffer->pageId);
-         // }
-
-         // // add the tuple header to the tuple page.
-         // this->pageBufferId = PageId{ filename, lastPageNumber };
           pageBuffer = resourceManager->bm.pin(resourceManager->fm, PageId{filename, pageId.pageNumber});
           pageBuffer->modify(&tp, sizeof(TuplePage), 0);
           pageEntryIndex = pd->numberOfEntries - 1;
