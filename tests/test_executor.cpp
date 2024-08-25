@@ -417,3 +417,17 @@ TEST_CASE("Create two tables, populate them and query a join") {
   }
 
 }
+
+// update with join
+
+// delete with join
+
+// insert very very large number of tuples
+
+// check that order by works.
+
+// check that order by multiple columns works.
+
+// semantic analysis tuple too long
+
+//

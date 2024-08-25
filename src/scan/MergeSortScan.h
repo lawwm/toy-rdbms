@@ -122,6 +122,9 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
   }
 
 
+  // temp files to delete.
+  std::vector<std::string> tempFilesToDelete;
+
   // do K way merge on the temp files.
   while (fileList.size() > 1)
   {
@@ -173,10 +176,19 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
       }
     }
 
+    for (auto& file : fileList)
+    {
+      tempFilesToDelete.push_back(file);
+    }
     fileList = std::move(newFileList);
   }
 
+  // delete all temporary files except for the final sorted temp file.
+  for (const auto& tempFile : tempFilesToDelete)
+  {
+    resourceManager->fm.deleteFile(tempFile);
+  }
 
   // return a table scan on the final temp file.
-  return std::make_unique<TableScan>(fileList[0], resourceManager, input->getSchema());
+  return std::make_unique<TableScanTemp>(fileList[0], resourceManager, input->getSchema());
 }

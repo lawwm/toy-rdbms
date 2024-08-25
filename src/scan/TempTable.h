@@ -66,3 +66,17 @@ public:
     return this->scan->getSchema();
   }
 };
+
+class TableScanTemp : public TableScan {
+private:
+  std::string fileName;
+  std::shared_ptr<ResourceManager> resourceManager;
+public:
+  TableScanTemp(std::string filename, std::shared_ptr<ResourceManager> rm, Schema schema) :
+    TableScan(filename, rm, schema), fileName{ filename }, resourceManager{ rm } {
+  }
+
+  ~TableScanTemp() {
+    this->resourceManager->fm.deleteFile(this->fileName);
+  }
+};

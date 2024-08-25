@@ -47,11 +47,14 @@ TEST_CASE("CreateHeapFile works") {
   const std::string fileName = "testbuffer12345";
   DeferDeleteFile deferDeleteFile(fileName);
 
+  u32 initialTuplePages = 8;
+  u32 addedTuplePages = 100;
+
   std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
-  HeapFile::createHeapFile(*rm, fileName, 8);
+  HeapFile::createHeapFile(*rm, fileName, initialTuplePages);
 
   u32 numPages = rm->fm.getNumberOfPages(fileName);
-  REQUIRE(numPages == 9);
+  REQUIRE(numPages == initialTuplePages + 1);
 
   u32 currPage = 0;
   for (; currPage < 9; ++currPage) {
@@ -66,15 +69,26 @@ TEST_CASE("CreateHeapFile works") {
     rm->bm.unpin(rm->fm, PageId{ fileName, currPage });
   }
 
-  for (; currPage <= 14; ++currPage) {
+  // Keep creating new pages until new page directory is inserted.
+  for (; currPage <= addedTuplePages; ++currPage) {
     PageId pageId = HeapFile::appendNewHeapPage(*rm, fileName);
     BufferFrame* bf = rm->bm.pin((rm->fm), pageId);
     PageType* pt = (PageType*)bf->bufferData.data();
     REQUIRE(*pt == PageType::TuplePage);
     rm->bm.unpin(rm->fm, pageId);
-    REQUIRE(pageId.pageNumber == currPage);
   }
 
   numPages = rm->fm.getNumberOfPages(fileName);
-  REQUIRE(numPages == 15);
+  REQUIRE(numPages == initialTuplePages + addedTuplePages);
+
+  HeapFile::HeapFileIterator iter(fileName, rm);
+  iter.findFirstDir();
+  u32 totalTuplePageCounts = 0;
+  do {
+    const PageDirectory* pd = reinterpret_cast<PageDirectory*>(iter.getPageDirBuffer()->bufferData.data());
+    totalTuplePageCounts += pd->numberOfEntries;
+  } while (iter.nextDir());
+
+  REQUIRE(totalTuplePageCounts == (addedTuplePages + initialTuplePages));
 }
+
