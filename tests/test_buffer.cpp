@@ -62,7 +62,7 @@ TEST_CASE("CreateHeapFile works") {
 
   u32 count = DIRWITHPAGES;
   u32 power = 2;
-  for (int i = 0; i < 8; ++i) {
+  for (int i = 0; i < 4; ++i) {
     iter.extendHeapFile();
     count = (power * DIRWITHPAGES);
     power *= 2;

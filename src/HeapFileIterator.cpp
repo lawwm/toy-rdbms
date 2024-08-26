@@ -78,7 +78,7 @@ void HeapFile::HeapFileIterator::extendHeapFile() {
     this->pageDirBuffer = resourceManager->bm.pin(resourceManager->fm, this->pageDirectoryId);
     this->pageDirBuffer->modify(&newPd, sizeof(PageDirectory), 0);
     pd = (PageDirectory*)this->pageDirBuffer->bufferData.data();
-    this->print(this->pageDirectoryId.pageNumber, pd->pageType);
+    //this->print(this->pageDirectoryId.pageNumber, pd->pageType);
 
     PageEntry* pageEntryList = (PageEntry*)(this->pageDirBuffer->bufferData.data() + sizeof(PageDirectory));
     u32 finalPageEntryNumber = resourceManager->fm.append(filename, numOfEntries);
@@ -90,7 +90,7 @@ void HeapFile::HeapFileIterator::extendHeapFile() {
       this->pageBufferId = PageId{ filename, pageEntryList[i].pageNumber };
       this->pageBuffer = resourceManager->bm.pin(resourceManager->fm, this->pageBufferId);
       this->pageBuffer->modify(&tp, sizeof(TuplePage), 0);
-      this->print(this->pageBufferId.pageNumber, tp.pageType);
+      // this->print(this->pageBufferId.pageNumber, tp.pageType);
       this->resourceManager->bm.unpin(this->resourceManager->fm, this->pageBuffer->pageId);
       this->pageBuffer = nullptr;
     }
@@ -231,7 +231,7 @@ void HeapFile::HeapFileIterator::createHeapFile(ResourceManager& rm, std::string
   pageDirBuffer->modify(&pd, sizeof(PageDirectory), 0);
   pageEntryIndex = 0;
 
-  this->print(0, pd.pageType);
+  // this->print(0, pd.pageType);
 
   // Add page entries to the page directory
   TuplePage tp{ 0, fm.getBlockSize(), 0, fm.getBlockSize() };
@@ -250,7 +250,7 @@ void HeapFile::HeapFileIterator::createHeapFile(ResourceManager& rm, std::string
     bm.unpin(fm, pageBuffer->pageId);
     this->pageBuffer = nullptr;
 
-    this->print(pageEntryList[pageEntryIndex].pageNumber, tp.pageType);
+    // this->print(pageEntryList[pageEntryIndex].pageNumber, tp.pageType);
 
   }
 

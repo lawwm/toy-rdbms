@@ -96,12 +96,10 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
     // do not create new file
     if (noPreviousTuple || comparator(previousTuple, *set.begin()) == true)
     {
-      std::vector<Tuple> tuples;
       for (auto& tuple : set)
       {
-        tuples.push_back(tuple);
+        iter->insertTuple(tuple);
       }
-      iter->insertTuples(tuples);
     }
     else
     {
@@ -109,12 +107,11 @@ std::unique_ptr<Scan> createSortedTempTable(size_t pageSize, u32 buffers,
       fileList.push_back(fileName + "_" + std::to_string(fileIndex++));
       iter = std::make_unique<HeapFile::HeapFileIterator>(fileList.back(), resourceManager);
 
-      std::vector<Tuple> tuples;
       for (auto& tuple : set)
       {
-        tuples.push_back(tuple);
+        iter->insertTuple(tuple);
       }
-      iter->insertTuples(tuples);
+
     }
   }
 

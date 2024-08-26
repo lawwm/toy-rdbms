@@ -247,6 +247,11 @@ TEST_CASE("Normal insert and then query with order by") {
     auto [resultTuple, msg] = executor.execute("SELECT * FROM citizen ORDER BY citizen.age ASC;");
 
     REQUIRE(resultTuple.size() == 105);
+
+    auto orderComparator = OrderComparator{ {2}, {true} };
+    for (int i = 1; i < resultTuple.size(); ++i) {
+      REQUIRE(orderComparator(resultTuple[i], resultTuple[i - 1]) == false);
+    }
   }
 
 }
@@ -463,3 +468,6 @@ TEST_CASE("Create two tables, populate them and query a join") {
 
 // semantic analysis tuple too long
 
+// i need to do stuff
+// i need to optimize the stuff
+// i need to add logging 

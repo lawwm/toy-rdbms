@@ -453,10 +453,10 @@ struct OrderComparator {
         continue;
       }
       if (isAscendingList[i]) {
-        return lhsConstant <= rhsConstant;
+        return lhsConstant < rhsConstant;
       }
       else {
-        return lhsConstant >= rhsConstant;
+        return lhsConstant > rhsConstant;
       }
     }
 
