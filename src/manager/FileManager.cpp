@@ -1,5 +1,5 @@
+#include "FileManager.h"
 
-#include "buffer.h"
 
 std::fstream& FileManager::seekFile(PageId pageId) {
   long offset = pageId.pageNumber * blockSize;

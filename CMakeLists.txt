@@ -16,13 +16,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 #include directories
 include_directories(include)
 
-file(GLOB_RECURSE NEWSQL_SRC "src/*.cpp" "src/*.h" "src/scan/*.cpp" "src/scan/*.h")
+file(GLOB_RECURSE NEWSQL_SRC "src/*.cpp" "src/*.h" 
+  "src/scan/*.cpp" "src/scan/*.h"
+  "src/manager/*.cpp" "src/manager/*.h")
 
 # Add source to this project's executable.
 add_executable (newsql ${NEWSQL_SRC})
 
 
-file(GLOB_RECURSE TEST_SRC "tests/*.cpp" "tests/*.h" "src/*.h" "src/scan/*.cpp" "src/scan/*.h" 
+file(GLOB_RECURSE TEST_SRC 
+  "tests/*.cpp" "tests/*.h" 
+  "src/manager/*.cpp" "src/manager/*.h"
+  "src/*.h" "src/scan/*.cpp" "src/scan/*.h" 
   "src/query.cpp" "src/parser.cpp" "src/buffer.cpp" "src/HeapFileIterator.cpp")
 
 foreach(file ${TEST_SRC})
