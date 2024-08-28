@@ -16,9 +16,12 @@ class MockTransaction {
 	std::vector<PageId> pageIdVector;
 	std::vector<bool> isSLock;
 	std::shared_ptr<LockManager> lm;
+	std::time_t txnTime;
 public:
-	MockTransaction(std::shared_ptr<LockManager> lm) : lm{ lm } {}
-	bool getSLock(PageId& pageId, std::time_t& txnTime) {
+	MockTransaction(std::shared_ptr<LockManager> lm, std::time_t txtime) 
+		: lm{ lm }, txnTime{ txtime } {}
+
+	bool getSLock(PageId& pageId) {
 		if (lm->getSLock(pageId, txnTime)) {
 			pageIdVector.push_back(pageId);
 			isSLock.push_back(true);
@@ -26,7 +29,7 @@ public:
 		}
 		return false;
 	}
-	bool getXLock(PageId& pageId, std::time_t& txnTime) {
+	bool getXLock(PageId& pageId) {
 		if (lm->getXLock(pageId, txnTime)) {
 			pageIdVector.push_back(pageId);
 			isSLock.push_back(false);
@@ -36,6 +39,7 @@ public:
 	}
 
 	~MockTransaction() {
+		std::cout << "Restarting Thread" << std::endl;
 		for (int i = 0; i < isSLock.size(); ++i) {
 			if (isSLock[i]) {
 				lm->releaseSLock(pageIdVector[i]);
@@ -79,7 +83,7 @@ TEST_CASE("Xlock after an XLock should fail if txn time is larger") {
 }
 
 TEST_CASE("Dead Lock should resolve") {
-	std::shared_ptr<LockManager> lm = std::make_shared<LockManager>();
+	std::shared_ptr<LockManager> lm = std::make_shared<LockManager>(1);
 
 	// Initialize a barrier for num_threads threads with a completion function
 	std::barrier sync_point(2, []() noexcept {
@@ -87,15 +91,24 @@ TEST_CASE("Dead Lock should resolve") {
 		});
 
 	std::thread threadA([&lm, &sync_point]() {
+		u32 count = 0;
 		while (true) {
-			MockTransaction txn{ lm };
-			if (!txn.getXLock(blockA, timeA)) {
+			MockTransaction txn{ lm, timeA };
+
+			std::cout << "Thread A trying to get X Lock for Block A" << std::endl;
+			if (!txn.getXLock(blockA)) {
+				std::cout << "Thread A can't get X Lock for Block A" << std::endl;
 				continue;
 			}
 
-			sync_point.arrive_and_wait();
-			
-			if (!txn.getXLock(blockB, timeC)) {
+			if (count++ == 0) {
+				std::cout << "Wait for sync" << std::endl;
+				sync_point.arrive_and_wait();
+			}
+					
+			std::cout << "Thread A trying to get X Lock for Block B" << std::endl;
+			if (!txn.getXLock(blockB)) {
+				std::cout << "Thread A can't get X Lock for Block B" << std::endl;
 				continue;
 			}
 			
@@ -105,15 +118,24 @@ TEST_CASE("Dead Lock should resolve") {
 	});
 
 	std::thread threadB([&lm, &sync_point]() {
+		u32 count = 0;
 		while (true) {
-			MockTransaction txn{ lm };
-			if (!txn.getXLock(blockB, timeB)) {
+			MockTransaction txn{ lm, timeB };
+
+			std::cout << "Thread B trying to get X Lock for Block B" << std::endl;
+			if (!txn.getXLock(blockB)) {
+				std::cout << "Thread B can't get X Lock for Block B" << std::endl;
 				continue;
 			}
 
-			sync_point.arrive_and_wait();
+			if (count++ == 0) {
+				std::cout << "Wait for sync" << std::endl;
+				sync_point.arrive_and_wait();
+			}
 
-			if (!txn.getXLock(blockA, timeD)) {
+			std::cout << "Thread B trying to get X Lock for Block A" << std::endl;
+			if (!txn.getXLock(blockA)) {
+				std::cout << "Thread B can't get X Lock for Block A" << std::endl;
 				continue;
 			}
 
