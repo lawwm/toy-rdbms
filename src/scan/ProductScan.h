@@ -2,7 +2,6 @@
 
 
 #include "../query.h"
-#include "../buffer.h"
 #include "./scan.h"
 
 

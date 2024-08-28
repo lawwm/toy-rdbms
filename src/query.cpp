@@ -1,7 +1,6 @@
 
 #include "parser.h"
 #include "query.h"
-#include "buffer.h"
 #include "scan/scan.h"
 #include "../src/scan/SelectScan.h"
 #include "../src/scan/TableScan.h"

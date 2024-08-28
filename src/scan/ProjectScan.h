@@ -3,7 +3,6 @@
 #include <memory>
 
 #include "../query.h"
-#include "../buffer.h"
 #include "./scan.h"
 
 class ProjectScan : public Scan {

@@ -28,7 +28,7 @@ file(GLOB_RECURSE TEST_SRC
   "tests/*.cpp" "tests/*.h" 
   "src/manager/*.cpp" "src/manager/*.h"
   "src/*.h" "src/scan/*.cpp" "src/scan/*.h" 
-  "src/query.cpp" "src/parser.cpp" "src/buffer.cpp" "src/HeapFileIterator.cpp")
+  "src/query.cpp" "src/parser.cpp" "src/HeapFileIterator.cpp")
 
 foreach(file ${TEST_SRC})
     message(STATUS "${file}")

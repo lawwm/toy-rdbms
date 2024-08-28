@@ -5,7 +5,6 @@
 
 #include "parser.h"
 #include "query.h"
-#include "buffer.h"
 #include "./scan/scan.h"
 #include "./scan/TableScan.h"
 #include "./scan/ProductScan.h"

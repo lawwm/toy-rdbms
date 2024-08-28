@@ -2,7 +2,6 @@
 
 #include "common.h"
 #include "query.h"
-#include "buffer.h"
 #include <string>
 #include "./manager/ResourceManager.h"
 

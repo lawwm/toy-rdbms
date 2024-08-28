@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../query.h"
-#include "../buffer.h"
 
 class Scan {
 public:
