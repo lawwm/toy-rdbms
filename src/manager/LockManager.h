@@ -32,6 +32,7 @@ enum LockStatus {
 
 struct LockMetaData {
 	LockStatus status;
+	u32 count;
 	std::time_t earliestTime;
 };
 
@@ -40,14 +41,41 @@ private:
 	std::unordered_map<std::string, std::unordered_map<u64, LockMetaData>> lockMap;
 	std::mutex mut;
 	std::condition_variable cv;
+	u32 waitingTime;
 public:
+
+	LockManager(u32 wt = 5) : lockMap{}, mut{}, cv{}, waitingTime{ wt } {}
+
+	// release shared lock
+	bool releaseSLock(PageId& pageId) {
+		{
+			std::lock_guard<std::mutex> lk(mut);
+
+			auto& pageMap = this->lockMap.at(pageId.filename);
+			LockMetaData metadata = pageMap.at(pageId.pageNumber);
+			metadata.count -= 1;
+			if (metadata.count == 0) {
+				pageMap.erase(pageId.pageNumber);
+				if (pageMap.size() == 0) {
+					this->lockMap.erase(pageId.filename);
+				}
+			}
+			else {
+				pageMap[pageId.pageNumber] = metadata;
+			}
+		}
+		cv.notify_all();
+		return true;
+	}
 
 	// return false if it should die...
 	bool getSLock(PageId& pageId, std::time_t& txnTime) {
 		bool shouldDie = false;
+		std::time_t startTime = std::time(nullptr);  // Get current time as time_t
 
 		std::unique_lock<std::mutex> ulock(mut);
-		cv.wait(ulock, [&lockMap, &shouldDie] {
+		bool succeeded = cv.wait_for(ulock, std::chrono::seconds(waitingTime), [this, &shouldDie, &pageId, &txnTime, &startTime] {
+			auto& lockMap = this->lockMap;
 			// if no locks on table
 			if (lockMap.find(pageId.filename) == end(lockMap)) {
 				return true;
@@ -64,6 +92,12 @@ public:
 				return true;
 			}
 
+			std::time_t endTime = std::time(nullptr);  // Do not kill under X seconds
+			double difference = std::difftime(endTime, startTime);
+			if (difference < this->waitingTime) {
+				return false;
+			}
+
 			// if current txn has lower priority -> needs to die
 			if (metadata.earliestTime < txnTime) {
 				shouldDie = true;
@@ -73,7 +107,9 @@ public:
 			return false;
 		});
 
-		if (shouldDie) {
+		if (shouldDie || !succeeded) {
+			ulock.unlock();
+			cv.notify_all();
 			return false;
 		}
 
@@ -83,23 +119,40 @@ public:
 
 		auto& pageMap = lockMap.at(pageId.filename);
 		if (pageMap.find(pageId.pageNumber) == end(pageMap)) {
-			pageMap.insert({pageId.pageNumber,  LockMetaData{SLock, txnTime} });
+			pageMap.insert({pageId.pageNumber,  LockMetaData{SLock, 1, txnTime} });
 			return true;
 		}
 
 		LockMetaData metadata = pageMap.at(pageId.pageNumber);
 		if (metadata.earliestTime > txnTime) {
-			pageMap.insert(pageId.pageNumber, LockMetaData{SLock, txnTime});
+			pageMap[pageId.pageNumber] = LockMetaData{SLock, metadata.count + 1, txnTime};
 		}
 
 		return true;
 	}
 
+	// release Xclusive lock
+	bool releaseXLock(PageId& pageId) {
+		{
+			std::lock_guard<std::mutex> lk(mut);
+
+			auto& pageMap = this->lockMap.at(pageId.filename);
+			LockMetaData metadata = pageMap.at(pageId.pageNumber);
+			pageMap.erase(pageId.pageNumber);
+			if (pageMap.size() == 0) {
+				this->lockMap.erase(pageId.filename);
+			}
+		}
+		cv.notify_all();
+		return true;
+	}
+
 	bool getXLock(PageId& pageId, std::time_t& txnTime) {
 		bool shouldDie = false;
+		std::time_t startTime = std::time(nullptr);  // Get current time as time_t
 
 		std::unique_lock<std::mutex> ulock(mut);
-		cv.wait(ulock, [&lockMap, &shouldDie] {
+		bool succeeded = cv.wait_for(ulock, std::chrono::seconds(waitingTime), [this, &shouldDie, &pageId, &txnTime, &startTime] {
 			// if no locks on table
 			if (lockMap.find(pageId.filename) == end(lockMap)) {
 				return true;
@@ -109,6 +162,12 @@ public:
 			auto& pageMap = lockMap.at(pageId.filename);
 			if (pageMap.find(pageId.pageNumber) == end(pageMap)) {
 				return true;
+			}
+
+			std::time_t endTime = std::time(nullptr);  // Do not kill under X seconds
+			double difference = std::difftime(endTime, startTime);
+			if (difference < this->waitingTime) {
+				return false;
 			}
 
 			// if current txn has lower priority -> needs to die
@@ -121,7 +180,9 @@ public:
 			return false;
 		});
 
-		if (shouldDie) {
+		if (shouldDie || !succeeded) {
+			ulock.unlock();
+			cv.notify_all();
 			return false;
 		}
 
@@ -131,10 +192,10 @@ public:
 
 		auto& pageMap = lockMap.at(pageId.filename);
 		if (pageMap.find(pageId.pageNumber) == end(pageMap)) {
-			pageMap.insert({ pageId.pageNumber,  LockMetaData{XLock, txnTime} });
+			pageMap.insert({ pageId.pageNumber,  LockMetaData{XLock, 1, txnTime} });
 		}
 		else {
-			throw std::runtime_error("Not supposed to try to get xlock when block is occupied");
+			throw std::runtime_error("Not supposed to try to get xlock when block is occupied, programmer error!!!");
 		}
 
 		return true;
