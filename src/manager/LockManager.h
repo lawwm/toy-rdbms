@@ -41,10 +41,10 @@ private:
 	std::unordered_map<std::string, std::unordered_map<u64, LockMetaData>> lockMap;
 	std::mutex mut;
 	std::condition_variable cv;
-	u32 waitingTime;
+	u32 defaultWaitTime;
 public:
 
-	LockManager(u32 wt = 5) : lockMap{}, mut{}, cv{}, waitingTime{ wt } {}
+	LockManager(u32 wt = 5) : lockMap{}, mut{}, cv{}, defaultWaitTime{ wt } {}
 
 	// release shared lock
 	bool releaseSLock(PageId& pageId) {
@@ -68,13 +68,19 @@ public:
 		return true;
 	}
 
-	// return false if it should die...
 	bool getSLock(PageId& pageId, std::time_t& txnTime) {
+		return getSLock(pageId, txnTime, defaultWaitTime);
+	}
+
+	// return false if it should die...
+	bool getSLock(PageId& pageId, std::time_t& txnTime, u32 waitingTime) {
 		bool shouldDie = false;
 		std::time_t startTime = std::time(nullptr);  // Get current time as time_t
 
 		std::unique_lock<std::mutex> ulock(mut);
-		bool succeeded = cv.wait_for(ulock, std::chrono::seconds(waitingTime), [this, &shouldDie, &pageId, &txnTime, &startTime] {
+		bool succeeded = cv.wait_for(ulock, std::chrono::seconds(waitingTime), 
+			[this, &shouldDie, &pageId, &txnTime, &startTime, &waitingTime] {
+
 			auto& lockMap = this->lockMap;
 			// if no locks on table
 			if (lockMap.find(pageId.filename) == end(lockMap)) {
@@ -94,7 +100,7 @@ public:
 
 			std::time_t endTime = std::time(nullptr);  // Do not kill under X seconds
 			double difference = std::difftime(endTime, startTime);
-			if (difference < this->waitingTime) {
+			if (difference < waitingTime) {
 				return false;
 			}
 
@@ -146,13 +152,18 @@ public:
 		cv.notify_all();
 		return true;
 	}
-
+	
 	bool getXLock(PageId& pageId, std::time_t& txnTime) {
+		return getXLock(pageId, txnTime, defaultWaitTime);
+	}
+
+	bool getXLock(PageId& pageId, std::time_t& txnTime, u32 waitingTime) {
 		bool shouldDie = false;
 		std::time_t startTime = std::time(nullptr);  // Get current time as time_t
 
 		std::unique_lock<std::mutex> ulock(mut);
-		bool succeeded = cv.wait_for(ulock, std::chrono::seconds(waitingTime), [this, &shouldDie, &pageId, &txnTime, &startTime] {
+		bool succeeded = cv.wait_for(ulock, std::chrono::seconds(waitingTime), 
+			[this, &shouldDie, &pageId, &txnTime, &startTime, &waitingTime] {
 			// if no locks on table
 			if (lockMap.find(pageId.filename) == end(lockMap)) {
 				return true;
@@ -166,13 +177,14 @@ public:
 
 			std::time_t endTime = std::time(nullptr);  // Do not kill under X seconds
 			double difference = std::difftime(endTime, startTime);
-			if (difference < this->waitingTime) {
+			if (difference < waitingTime) {
 				return false;
 			}
 
 			// if current txn has lower priority -> needs to die
 			LockMetaData metadata = pageMap.at(pageId.pageNumber);
 			if (metadata.earliestTime < txnTime) {
+				std::cout << "Dying due to priority at " << txnTime << std::endl;
 				shouldDie = true;
 				return true;
 			}
