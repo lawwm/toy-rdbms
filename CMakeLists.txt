@@ -8,13 +8,9 @@ project ("newsql")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Ensure exceptions are enabled
-# if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-#     add_compile_options(-fexceptions)
-# endif()
-
 #include directories
 include_directories(include)
+link_directories(lib)
 
 file(GLOB_RECURSE NEWSQL_SRC "src/*.cpp" "src/*.h" 
   "src/scan/*.cpp" "src/scan/*.h"
@@ -22,7 +18,7 @@ file(GLOB_RECURSE NEWSQL_SRC "src/*.cpp" "src/*.h"
 
 # Add source to this project's executable.
 add_executable (newsql ${NEWSQL_SRC})
-
+target_link_libraries(newsql LINK_PUBLIC ${CMAKE_SOURCE_DIR}/lib/spdlog.lib)
 
 file(GLOB_RECURSE TEST_SRC 
   "tests/*.cpp" "tests/*.h" 
@@ -37,6 +33,7 @@ endforeach()
 # Add the Catch2 test executable
 add_executable(testsql ${TEST_SRC} "include/catch.hpp")
 target_include_directories(testsql PRIVATE include)
+target_link_libraries(testsql LINK_PUBLIC ${CMAKE_SOURCE_DIR}/lib/spdlog.lib)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET newsql PROPERTY CXX_STANDARD 20)
@@ -44,3 +41,4 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
 endif()
 
 # TODO: Add tests and install targets if needed.
+

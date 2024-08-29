@@ -1,9 +1,11 @@
 #include "catch.hpp"
+#include "spdlog/spdlog.h"
 
 #include "../src/manager/LockManager.h"
 #include <vector>
 #include <memory>
 #include <barrier>
+
 
 std::string filename = "FileA";
 PageId blockA{ filename, 0 };
@@ -44,9 +46,8 @@ public:
       status = "failed";
     }
 
-    std::cout << "Transaction " << txnName <<
-      " " << status << " to get " << lock << " for file name " << pageId.filename
-      << " and page number " << pageId.pageNumber << std::endl;
+    spdlog::debug("Transaction {} {} to get {} for file name {} and page number {}",
+      txnName, status, lock, pageId.filename, pageId.pageNumber);
   }
 
   bool getXLock(PageId& pageId) {
@@ -108,7 +109,7 @@ TEST_CASE("Dead Lock should resolve") {
 
   // Initialize a barrier for num_threads threads with a completion function
   std::barrier sync_point(2, []() noexcept {
-    std::cout << "All threads have reached the barrier. Proceeding to the next phase...\n";
+    spdlog::info("All threads have reached the barrier. Proceeding to the next phase...\n");
     });
   std::shared_ptr<std::atomic<int>> counter = std::make_shared<std::atomic<int>>(0);
 
@@ -118,17 +119,17 @@ TEST_CASE("Dead Lock should resolve") {
       MockTransaction txn{ "A", lm, timeA, 3 };
 
       if (!txn.getXLock(blockA)) {
-        std::cout << "Restarting Thread for transaction A " << std::endl;
+        spdlog::debug("Restarting Thread for transaction A");
         continue;
       }
 
       if (count++ == 0) {
-        std::cout << "Wait for sync" << std::endl;
+        spdlog::debug("Wait for sync");
         sync_point.arrive_and_wait();
       }
 
       if (!txn.getXLock(blockB)) {
-        std::cout << "Restarting Thread for transaction A " << std::endl;
+        spdlog::debug("Restarting Thread for transaction A");
         continue;
       }
 
@@ -146,17 +147,17 @@ TEST_CASE("Dead Lock should resolve") {
       MockTransaction txn{ "B", lm, timeB, 1 };
 
       if (!txn.getXLock(blockB)) {
-        std::cout << "Restarting Thread for transaction B" << std::endl;
+        spdlog::debug("Restarting Thread for transaction B");
         continue;
       }
 
       if (count++ == 0) {
-        std::cout << "Wait for sync" << std::endl;
+        spdlog::debug("Wait for sync");
         sync_point.arrive_and_wait();
       }
 
       if (!txn.getXLock(blockA)) {
-        std::cout << "Restarting Thread for transaction B" << std::endl;
+        spdlog::debug("Restarting Thread for transaction B");
         continue;
       }
 
