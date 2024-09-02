@@ -23,7 +23,7 @@ class MockTransaction {
   u32 secs;
 public:
   MockTransaction(std::string txnName, std::shared_ptr<LockManager> lm, std::time_t txtime, u32 seconds)
-    : txnName{ txnName }, lm{ lm }, txnTime{ txtime }, secs{ seconds } {}
+    : lm{ lm }, txnName{ txnName }, txnTime{ txtime }, secs{ seconds } {}
 
   bool getSLock(PageId& pageId) {
     getLock(pageId, false, true);
@@ -45,7 +45,6 @@ public:
     if (isFailed) {
       status = "failed";
     }
-
     spdlog::debug("Transaction {} {} to get {} for file name {} and page number {}",
       txnName, status, lock, pageId.filename, pageId.pageNumber);
   }
@@ -80,6 +79,17 @@ TEST_CASE("Multiple Slock should work") {
   REQUIRE(lm.getSLock(blockA, timeA) == true);
   REQUIRE(lm.getSLock(blockA, timeB) == true);
   REQUIRE(lm.getSLock(blockA, timeC) == true);
+
+  auto metaData = lm.getLockMetaData(blockA);
+  REQUIRE(metaData.count == 3);
+  REQUIRE(metaData.status == SLock);
+
+  REQUIRE(lm.releaseSLock(blockA) == true);
+  REQUIRE(lm.releaseSLock(blockA) == true);
+
+  metaData = lm.getLockMetaData(blockA);
+  REQUIRE(metaData.count == 1);
+  REQUIRE(metaData.status == SLock);
 }
 
 TEST_CASE("Xlock after an SLock should fail if txn time is larger") {
@@ -87,6 +97,10 @@ TEST_CASE("Xlock after an SLock should fail if txn time is larger") {
 
   REQUIRE(lm.getSLock(blockA, timeA) == true);
   REQUIRE(lm.getXLock(blockA, timeB) == false);
+
+  auto metaData = lm.getLockMetaData(blockA);
+  REQUIRE(metaData.count == 1);
+  REQUIRE(metaData.status == SLock);
 }
 
 TEST_CASE("Slock after an XLock should fail if txn time is larger") {
@@ -94,6 +108,10 @@ TEST_CASE("Slock after an XLock should fail if txn time is larger") {
 
   REQUIRE(lm.getXLock(blockA, timeA) == true);
   REQUIRE(lm.getSLock(blockA, timeB) == false);
+
+  auto metaData = lm.getLockMetaData(blockA);
+  REQUIRE(metaData.count == 1);
+  REQUIRE(metaData.status == XLock);
 }
 
 TEST_CASE("Xlock after an XLock should fail if txn time is larger") {
@@ -102,9 +120,38 @@ TEST_CASE("Xlock after an XLock should fail if txn time is larger") {
   REQUIRE(lm.getXLock(blockA, timeB) == true);
   REQUIRE(lm.getXLock(blockA, timeA) == false);
   REQUIRE(lm.getXLock(blockA, timeC) == false);
+
+  auto metaData = lm.getLockMetaData(blockA);
+  REQUIRE(metaData.count == 1);
+  REQUIRE(metaData.status == XLock);
+}
+
+TEST_CASE("XLock after SLock should upgrade the lock level if there is only one holder") {
+  LockManager lm{ 1 };
+
+  REQUIRE(lm.getSLock(blockA, timeA) == true);
+  REQUIRE(lm.getXLock(blockA, timeA, 1, true) == true);
+
+  auto metaData = lm.getLockMetaData(blockA);
+  REQUIRE(metaData.count == 1);
+  REQUIRE(metaData.status == XLock);
+}
+
+
+TEST_CASE("XLock after SLock should fail if there is more than one holder") {
+  LockManager lm{ 1 };
+
+  REQUIRE(lm.getSLock(blockA, timeA) == true);
+  REQUIRE(lm.getSLock(blockA, timeB) == true);
+  REQUIRE(lm.getXLock(blockA, timeA, 1, true) == false);
+
+  auto metaData = lm.getLockMetaData(blockA);
+  REQUIRE(metaData.count == 2);
+  REQUIRE(metaData.status == SLock);
 }
 
 TEST_CASE("Dead Lock should resolve") {
+  spdlog::set_level(spdlog::level::debug);
   std::shared_ptr<LockManager> lm = std::make_shared<LockManager>(1);
 
   // Initialize a barrier for num_threads threads with a completion function

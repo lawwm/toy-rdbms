@@ -47,9 +47,6 @@ TEST_CASE("CreateHeapFile works") {
   const std::string fileName = "testbuffer12345";
   DeferDeleteFile deferDeleteFile(fileName);
 
-  u32 initialTuplePages = 8;
-  u32 addedTuplePages = 100;
-
   std::shared_ptr<ResourceManager> rm = std::make_shared<ResourceManager>(TEST_PAGE_SIZE, 10);
   HeapFile::HeapFileIterator iter(fileName, rm);
 
